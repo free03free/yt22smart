@@ -185,8 +185,9 @@ public final class IptvImporter {
                 }
             }
             parsed = rest;
+            int portalIndex = 0;
             for (StalkerAccount a : portals) {
-                fetchStalker(a, groupHint);
+                fetchStalker(a, groupHint, ++portalIndex, portals.size());
             }
         }
 
@@ -223,17 +224,20 @@ public final class IptvImporter {
         addWithLinks(channels, depth, groupHint, true);
     }
 
-    private void fetchStalker(StalkerAccount acc, String groupHint) {
+    private void fetchStalker(StalkerAccount acc, String groupHint, final int portalIndex, final int portalCount) {
         if (mFetcher == null) {
             mResult.messages.add("Stalker portal found but downloading is disabled: " + acc.host());
             return;
         }
         List<String> notes = new ArrayList<>();
         try {
-            List<IptvChannel> channels = StalkerClient.fetchChannels(mFetcher, acc, notes);
+            final String host = acc.host();
+            List<IptvChannel> channels = StalkerClient.fetchChannels(mFetcher, acc, notes,
+                    (mac, macs) -> report("portal " + portalIndex + "/" + portalCount + " " + host + " (" + mac + "/" + macs + ")"));
             mResult.stalkerPortals++;
             mResult.listsDownloaded++;
             addAll(channels, groupHint);
+            report("portal " + portalIndex + "/" + portalCount + " \u2713");
         } catch (java.util.concurrent.CancellationException e) {
             throw e;
         } catch (IOException | RuntimeException e) {

@@ -488,6 +488,9 @@ public final class IptvSection {
 
     // ------------------------------------------------------------------ import progress
 
+    private static final long MIN_REDRAW_MS = 4000;
+    private static String sLastDrawnState = "";
+    private static long sLastDrawMs;
     private static final Handler MAIN = new Handler(Looper.getMainLooper());
     private static WeakReference<Context> sContextRef = new WeakReference<>(null);
 
@@ -533,8 +536,17 @@ public final class IptvSection {
             MessageHelpers.showLongMessage(context, message);
             onLibraryChanged(context); // back to the root + redraw (the "done" card is there)
         } else if (sView.isEmpty()) {
+            // every redraw reloads the whole screen (visible flicker): redraw only when what the card shows changed,
+            // and not more often than every few seconds
+            String state = snap.done + "/" + snap.total + ":" + snap.channels + ":" + snap.current;
+            long now = System.currentTimeMillis();
+            if (state.equals(sLastDrawnState) || now - sLastDrawMs < MIN_REDRAW_MS) {
+                return;
+            }
             BrowseSection current = BrowsePresenter.instance(context).getCurrentSection();
             if (current != null && current.getId() == SECTION_ID) {
+                sLastDrawnState = state;
+                sLastDrawMs = now;
                 redraw(context); // refresh the progress card
             }
         }

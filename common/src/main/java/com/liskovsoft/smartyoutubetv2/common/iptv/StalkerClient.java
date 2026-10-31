@@ -84,9 +84,22 @@ public final class StalkerClient {
      * @param messages receives one line per MAC that failed
      * @return channels (never empty), url = {@link StalkerLink}; throws when no MAC works
      */
+    /** Progress hook: called before every MAC attempt. May throw to abort (cancel). */
+    public interface Step {
+        void onMac(int index, int total);
+    }
+
     public static List<IptvChannel> fetchChannels(IptvFetcher http, StalkerAccount account, List<String> messages) throws IOException {
+        return fetchChannels(http, account, messages, null);
+    }
+
+    public static List<IptvChannel> fetchChannels(IptvFetcher http, StalkerAccount account, List<String> messages, Step step) throws IOException {
         IOException last = null;
+        int macIndex = 0;
         for (String mac : account.macs) {
+            if (step != null) {
+                step.onMac(++macIndex, account.macs.size());
+            }
             try {
                 Session s = open(http, account.portal, mac);
                 StalkerAccount ordered = new StalkerAccount(account.portal);
