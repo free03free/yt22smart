@@ -5,7 +5,7 @@ import java.util.regex.Pattern;
 
 /** URL helpers shared by all parsers. Only well known streaming schemes are accepted (no file://, content://, javascript:). */
 public final class IptvUrls {
-    public static final String SCHEMES = "https?|rtmps?|rtmpe|rtmpt|rtsps?|udp|rtp|mmsh?t?|srt|rist|acestream|sop";
+    public static final String SCHEMES = "https?|rtmps?|rtmpe|rtmpt|rtsps?|udp|rtp|mmsh?t?|srt|rist|acestream|sop|stalker";
     public static final Pattern STREAM_URL = Pattern.compile(
             "(?i)\\b(?:" + SCHEMES + ")://[^\\s\"'<>\\u0000-\\u001f]+");
     private static final Pattern STARTS_WITH_URL = Pattern.compile("(?i)^(?:" + SCHEMES + ")://\\S+");

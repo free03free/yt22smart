@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.Map;
 import java.util.zip.GZIPInputStream;
 
 /** Plain HttpURLConnection downloader: follows redirects (also http -> https), size capped, IPTV friendly user agent. */
@@ -24,6 +25,11 @@ public class HttpIptvFetcher implements IptvFetcher {
 
     @Override
     public byte[] fetch(String url) throws IOException {
+        return fetch(url, null);
+    }
+
+    @Override
+    public byte[] fetch(String url, Map<String, String> headers) throws IOException {
         String current = url;
         for (int i = 0; i <= MAX_REDIRECTS; i++) {
             if (!current.toLowerCase().startsWith("http://") && !current.toLowerCase().startsWith("https://")) {
@@ -36,6 +42,11 @@ public class HttpIptvFetcher implements IptvFetcher {
                 c.setReadTimeout(mOptions.readTimeoutMs);
                 c.setRequestProperty("User-Agent", mOptions.userAgent == null || mOptions.userAgent.isEmpty() ? DEFAULT_USER_AGENT : mOptions.userAgent);
                 c.setRequestProperty("Accept", "*/*");
+                if (headers != null) {
+                    for (Map.Entry<String, String> h : headers.entrySet()) {
+                        c.setRequestProperty(h.getKey(), h.getValue()); // overrides the defaults above
+                    }
+                }
                 int code = c.getResponseCode();
                 if (code == 301 || code == 302 || code == 303 || code == 307 || code == 308) {
                     String loc = c.getHeaderField("Location");

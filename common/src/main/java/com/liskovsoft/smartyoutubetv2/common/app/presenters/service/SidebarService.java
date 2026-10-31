@@ -252,6 +252,7 @@ public class SidebarService implements ProfileChangeListener {
         mDefaultSections.put(R.string.header_blocked_channels, MediaGroup.TYPE_BLOCKED_CHANNELS);
         mDefaultSections.put(R.string.header_playlists, MediaGroup.TYPE_USER_PLAYLISTS);
         mDefaultSections.put(R.string.header_playlist_library, PlaylistLibraryService.SECTION_ID);
+        mDefaultSections.put(R.string.iptv_title, IptvSection.SECTION_ID);
         mDefaultSections.put(R.string.my_videos, MediaGroup.TYPE_MY_VIDEOS);
         mDefaultSections.put(R.string.playback_queue_category_title, MediaGroup.TYPE_PLAYBACK_QUEUE);
         mDefaultSections.put(R.string.header_settings, MediaGroup.TYPE_SETTINGS);
@@ -311,6 +312,13 @@ public class SidebarService implements ProfileChangeListener {
         if (!libPrefs.getBoolean("added", false)) {
             enableSection(PlaylistLibraryService.SECTION_ID, true);
             libPrefs.edit().putBoolean("added", true).apply();
+        }
+
+        // One-time: show the new "IPTV" section for existing users (they can hide it afterwards)
+        android.content.SharedPreferences iptvPrefs = mContext.getSharedPreferences("iptv_section", Context.MODE_PRIVATE);
+        if (!iptvPrefs.getBoolean("added", false)) {
+            enableSection(IptvSection.SECTION_ID, true);
+            iptvPrefs.edit().putBoolean("added", true).apply();
         }
 
         cleanupPinnedItems();

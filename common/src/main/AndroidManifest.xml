@@ -77,6 +77,12 @@
             android:name="com.liskovsoft.smartyoutubetv2.common.misc.BackgroundPlaybackService"
             android:enabled="true"/>
 
+        <activity android:name=".misc.IptvPlayerActivity"
+            android:exported="false"
+            android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation|layoutDirection|keyboardHidden|keyboard|navigation"
+            android:supportsPictureInPicture="false"
+            android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen" />
+
         <activity android:name=".misc.BackupReceiverActivity"
             android:exported="true">
             <intent-filter>

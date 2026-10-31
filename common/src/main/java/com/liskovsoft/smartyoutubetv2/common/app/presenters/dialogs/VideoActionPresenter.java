@@ -7,6 +7,7 @@ import com.liskovsoft.smartyoutubetv2.common.R;
 import com.liskovsoft.smartyoutubetv2.common.app.models.data.Video;
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.BrowsePresenter;
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.ChannelUploadsPresenter;
+import com.liskovsoft.smartyoutubetv2.common.app.presenters.service.IptvSection;
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.service.LibraryCollections;
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.PlaybackPresenter;
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.SearchPresenter;
@@ -27,6 +28,11 @@ public class VideoActionPresenter extends BasePresenter<Void> {
 
     public void apply(Video item) {
         if (item == null) {
+            return;
+        }
+
+        // IPTV section cards (folders, channels, search ...)
+        if (IptvSection.handleClick(getContext(), item)) {
             return;
         }
 

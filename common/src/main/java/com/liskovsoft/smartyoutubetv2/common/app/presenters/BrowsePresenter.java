@@ -56,6 +56,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.service.LibraryCollections;
+import com.liskovsoft.smartyoutubetv2.common.app.presenters.service.IptvSection;
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.service.PlaylistLibraryService;
 import io.reactivex.Observable;
 import io.reactivex.disposables.Disposable;
@@ -259,6 +260,7 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
                 new BrowseSection(MediaGroup.TYPE_BLOCKED_CHANNELS, getContext().getString(R.string.header_blocked_channels), BrowseSection.TYPE_GRID, R.drawable.icon_blocked_channels, false));
         mSectionsMapping.put(MediaGroup.TYPE_USER_PLAYLISTS, new BrowseSection(MediaGroup.TYPE_USER_PLAYLISTS, getContext().getString(R.string.header_playlists), BrowseSection.TYPE_ROW, R.drawable.icon_playlist, false));
         mSectionsMapping.put(PlaylistLibraryService.SECTION_ID, new BrowseSection(PlaylistLibraryService.SECTION_ID, getContext().getString(R.string.header_playlist_library), BrowseSection.TYPE_ROW, R.drawable.icon_playlist, true));
+        mSectionsMapping.put(IptvSection.SECTION_ID, new BrowseSection(IptvSection.SECTION_ID, getContext().getString(R.string.iptv_title), BrowseSection.TYPE_GRID, R.drawable.icon_live, false));
         mSectionsMapping.put(MediaGroup.TYPE_NOTIFICATIONS, new BrowseSection(MediaGroup.TYPE_NOTIFICATIONS, getContext().getString(R.string.header_notifications), BrowseSection.TYPE_GRID, R.drawable.icon_notification, false));
         mSectionsMapping.put(MediaGroup.TYPE_PLAYBACK_QUEUE, new BrowseSection(MediaGroup.TYPE_PLAYBACK_QUEUE, getContext().getString(R.string.playback_queue_category_title), BrowseSection.TYPE_GRID, R.drawable.icon_queue, false));
 
@@ -325,6 +327,7 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
     private void initLocalGridMapping() {
         mLocalGridMappings.put(MediaGroup.TYPE_PLAYBACK_QUEUE, () -> Playlist.instance().getAllReversed());
         mLocalGridMappings.put(MediaGroup.TYPE_BLOCKED_CHANNELS, this::getBlockedChannels);
+        mLocalGridMappings.put(IptvSection.SECTION_ID, () -> IptvSection.buildItems(getContext()));
     }
 
     private List<Video> getBlockedChannels() {
@@ -510,6 +513,10 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
     @Override
     public void onVideoItemLongClicked(Video item) {
         if (getContext() == null) {
+            return;
+        }
+
+        if (IptvSection.handleLongClick(getContext(), item)) { // IPTV cards have their own menu
             return;
         }
 

@@ -18,7 +18,9 @@ import com.liskovsoft.smartyoutubetv2.common.R;
 import com.liskovsoft.smartyoutubetv2.common.app.models.playback.ui.OptionItem;
 import com.liskovsoft.smartyoutubetv2.common.app.models.playback.ui.UiOptionItem;
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.AppDialogPresenter;
+import com.liskovsoft.smartyoutubetv2.common.app.presenters.BrowsePresenter;
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.base.BasePresenter;
+import com.liskovsoft.smartyoutubetv2.common.app.presenters.service.IptvSection;
 import com.liskovsoft.smartyoutubetv2.common.iptv.CommonsArchiveHandler;
 import com.liskovsoft.smartyoutubetv2.common.iptv.HttpIptvFetcher;
 import com.liskovsoft.smartyoutubetv2.common.iptv.IptvChannel;
@@ -28,6 +30,7 @@ import com.liskovsoft.smartyoutubetv2.common.iptv.IptvPrefs;
 import com.liskovsoft.smartyoutubetv2.common.iptv.IptvPlaylist;
 import com.liskovsoft.smartyoutubetv2.common.iptv.IptvStore;
 import com.liskovsoft.smartyoutubetv2.common.iptv.IptvUrls;
+import com.liskovsoft.smartyoutubetv2.common.iptv.IptvUserData;
 import com.liskovsoft.smartyoutubetv2.common.misc.MotherActivity;
 import com.liskovsoft.smartyoutubetv2.common.utils.AppDialogUtil;
 import com.liskovsoft.smartyoutubetv2.common.utils.SimpleEditDialog;
@@ -78,6 +81,11 @@ public class IptvSettingsPresenter extends BasePresenter<Void> {
         AppDialogPresenter dialog = AppDialogPresenter.instance(getContext());
         IptvPlaylist library = mStore.load();
 
+        dialog.appendSingleButton(UiOptionItem.from(getContext().getString(R.string.iptv_open_section), option -> {
+            AppDialogPresenter.instance(getContext()).closeDialog();
+            BrowsePresenter.instance(getContext()).selectSection(IptvSection.SECTION_ID);
+        }));
+        dialog.appendRadioCategory(getContext().getString(R.string.iptv_player_mode), playerChoices());
         dialog.appendSingleButton(UiOptionItem.from(getContext().getString(R.string.iptv_import_link), getContext().getString(R.string.iptv_import_link_desc), option -> showLinkDialog()));
         dialog.appendSingleButton(UiOptionItem.from(getContext().getString(R.string.iptv_import_clipboard), option -> importFromClipboard()));
         dialog.appendSingleButton(UiOptionItem.from(getContext().getString(R.string.iptv_import_file), getContext().getString(R.string.iptv_import_file_desc), option -> startFilePicker()));
@@ -89,11 +97,23 @@ public class IptvSettingsPresenter extends BasePresenter<Void> {
             dialog.appendSingleButton(UiOptionItem.from(getContext().getString(R.string.iptv_clear), option ->
                     AppDialogUtil.showConfirmationDialog(getContext(), getContext().getString(R.string.iptv_clear), () -> {
                         mStore.clear();
+                        IptvUserData.instance(getContext()).clearAll();
+                        IptvSection.onLibraryChanged(getContext());
                         MessageHelpers.showMessage(getContext(), R.string.msg_done);
                         AppDialogPresenter.instance(getContext()).closeDialog();
                     })));
         }
         dialog.showDialog(getContext().getString(R.string.iptv_title), IptvSettingsPresenter::unhold);
+    }
+
+    private List<OptionItem> playerChoices() {
+        int current = mPrefs.getPlayerMode();
+        List<OptionItem> items = new ArrayList<>();
+        items.add(UiOptionItem.from(getContext().getString(R.string.iptv_player_internal),
+                option -> mPrefs.setPlayerMode(IptvPrefs.PLAYER_INTERNAL), current == IptvPrefs.PLAYER_INTERNAL));
+        items.add(UiOptionItem.from(getContext().getString(R.string.iptv_player_external),
+                option -> mPrefs.setPlayerMode(IptvPrefs.PLAYER_EXTERNAL), current == IptvPrefs.PLAYER_EXTERNAL));
+        return items;
     }
 
     // ------------------------------------------------------------------ import
@@ -184,6 +204,7 @@ public class IptvSettingsPresenter extends BasePresenter<Void> {
             mMainHandler.post(() -> {
                 mBusy = false;
                 MessageHelpers.showLongMessage(context, finalMessage);
+                IptvSection.onLibraryChanged(context);
             });
         }, "iptv-import").start();
     }
@@ -317,21 +338,6 @@ public class IptvSettingsPresenter extends BasePresenter<Void> {
     }
 
     private void play(IptvChannel channel) {
-        try {
-            Intent intent = new Intent(Intent.ACTION_VIEW);
-            String ext = IptvUrls.extension(channel.url);
-            intent.setDataAndType(Uri.parse(channel.url), ext.equals("m3u8") ? "application/x-mpegURL" : "video/*");
-            if (channel.userAgent != null || channel.referrer != null) {
-                List<String> headers = new ArrayList<>(); // MX Player style extra, ignored by other players
-                if (channel.userAgent != null) { headers.add("User-Agent"); headers.add(channel.userAgent); }
-                if (channel.referrer != null) { headers.add("Referer"); headers.add(channel.referrer); }
-                intent.putExtra("headers", headers.toArray(new String[0]));
-            }
-            intent.putExtra("title", channel.name);
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            getContext().startActivity(Intent.createChooser(intent, channel.name).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
-        } catch (ActivityNotFoundException e) {
-            MessageHelpers.showMessage(getContext(), R.string.iptv_no_player);
-        }
+        IptvSection.play(getContext(), channel); // shared with the sidebar section (also records "recent")
     }
 }

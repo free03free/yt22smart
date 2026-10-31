@@ -60,4 +60,35 @@ public class IptvPlaylist {
         }
         return result;
     }
+
+    /** @return number of removed channels (0 or 1) */
+    public int removeByUrl(String url) {
+        if (url == null) {
+            return 0;
+        }
+        String key = url.trim();
+        for (java.util.Iterator<IptvChannel> it = mChannels.iterator(); it.hasNext(); ) {
+            if (it.next().key().equals(key)) {
+                it.remove();
+                mKeys.remove(key);
+                return 1;
+            }
+        }
+        return 0;
+    }
+
+    /** Removes every channel of the group ("" = ungrouped). @return number of removed channels */
+    public int removeGroup(String group) {
+        String g = group == null ? "" : group;
+        int removed = 0;
+        for (java.util.Iterator<IptvChannel> it = mChannels.iterator(); it.hasNext(); ) {
+            IptvChannel c = it.next();
+            if ((c.group == null ? "" : c.group).equals(g)) {
+                it.remove();
+                mKeys.remove(c.key());
+                removed++;
+            }
+        }
+        return removed;
+    }
 }

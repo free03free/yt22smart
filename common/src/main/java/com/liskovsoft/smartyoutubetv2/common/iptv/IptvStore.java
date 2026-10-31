@@ -55,6 +55,26 @@ public final class IptvStore {
         return added;
     }
 
+    /** @return number of removed channels */
+    public synchronized int removeChannel(String url) throws IOException {
+        IptvPlaylist current = load();
+        int removed = current.removeByUrl(url);
+        if (removed > 0) {
+            save(current);
+        }
+        return removed;
+    }
+
+    /** @return number of removed channels */
+    public synchronized int removeGroup(String group) throws IOException {
+        IptvPlaylist current = load();
+        int removed = current.removeGroup(group);
+        if (removed > 0) {
+            save(current);
+        }
+        return removed;
+    }
+
     public synchronized void clear() {
         mCache = new IptvPlaylist();
         //noinspection ResultOfMethodCallIgnored

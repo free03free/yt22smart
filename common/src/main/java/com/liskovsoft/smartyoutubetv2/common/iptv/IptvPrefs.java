@@ -6,6 +6,8 @@ import android.content.SharedPreferences;
 /** Persists {@link IptvOptions}. Everything defaults to "unlimited" (0). */
 public final class IptvPrefs {
     private static final String PREFS = "iptv_prefs";
+    public static final int PLAYER_INTERNAL = 0;
+    public static final int PLAYER_EXTERNAL = 1;
     private static IptvPrefs sInstance;
     private final SharedPreferences mPrefs;
 
@@ -45,6 +47,10 @@ public final class IptvPrefs {
         }
         return o;
     }
+
+    /** @return {@link #PLAYER_INTERNAL} (default) or {@link #PLAYER_EXTERNAL} */
+    public int getPlayerMode() { return mPrefs.getInt("playerMode", PLAYER_INTERNAL); }
+    public void setPlayerMode(int mode) { mPrefs.edit().putInt("playerMode", mode).apply(); }
 
     public void putInt(String key, int v) { mPrefs.edit().putInt(key, v).apply(); }
     public void putLong(String key, long v) { mPrefs.edit().putLong(key, v).apply(); }

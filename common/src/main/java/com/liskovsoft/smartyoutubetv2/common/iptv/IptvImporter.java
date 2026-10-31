@@ -35,6 +35,8 @@ public final class IptvImporter {
         public final List<XtreamAccount> accounts = new ArrayList<>();
         public int filesParsed;
         public int listsDownloaded;
+        /** Stalker / Ministra portals whose channel list was downloaded. */
+        public int stalkerPortals;
         public int failures;
     }
 
@@ -155,6 +157,21 @@ public final class IptvImporter {
     }
 
     private void processText(List<IptvChannel> parsed, String rawText, int depth, String groupHint) {
+        // Stalker / Ministra portals: "http://host/c/" followed by MAC addresses (not a file, needs an API session)
+        List<StalkerAccount> portals = StalkerAccount.parseAll(rawText);
+        if (!portals.isEmpty()) {
+            List<IptvChannel> rest = new ArrayList<>();
+            for (IptvChannel c : parsed) {
+                if (!isPortalUrl(c.url, portals)) {
+                    rest.add(c);
+                }
+            }
+            parsed = rest;
+            for (StalkerAccount a : portals) {
+                fetchStalker(a, groupHint);
+            }
+        }
+
         // Xtream accounts described by a labelled message ("Server/Username/Password") or "host user pass" lines
         List<XtreamAccount> found = new ArrayList<>();
         XtreamAccount whole = IptvUrls.isStreamUrl(rawText.trim()) ? null : XtreamAccount.parse(rawText);
@@ -186,6 +203,46 @@ public final class IptvImporter {
             }
         }
         addWithLinks(channels, depth, groupHint, true);
+    }
+
+    private void fetchStalker(StalkerAccount acc, String groupHint) {
+        if (mFetcher == null) {
+            mResult.messages.add("Stalker portal found but downloading is disabled: " + acc.host());
+            return;
+        }
+        List<String> notes = new ArrayList<>();
+        try {
+            List<IptvChannel> channels = StalkerClient.fetchChannels(mFetcher, acc, notes);
+            mResult.stalkerPortals++;
+            mResult.listsDownloaded++;
+            addAll(channels, groupHint);
+        } catch (IOException | RuntimeException e) {
+            mResult.failures++;
+            mResult.messages.add("Portal " + acc.host() + " did not return channels (expired MAC or blocked?)");
+        }
+        mResult.messages.addAll(notes);
+    }
+
+    private static boolean isPortalUrl(String url, List<StalkerAccount> portals) {
+        if (url == null) {
+            return false;
+        }
+        String u = url.trim();
+        int cut = u.length();
+        int q = u.indexOf('?');
+        if (q >= 0) cut = Math.min(cut, q);
+        int h = u.indexOf('#');
+        if (h >= 0) cut = Math.min(cut, h);
+        u = u.substring(0, cut).toLowerCase(Locale.ROOT);
+        while (u.endsWith("/")) {
+            u = u.substring(0, u.length() - 1);
+        }
+        for (StalkerAccount a : portals) {
+            if (u.equals(a.key())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean pointsAtServerRoot(String url, List<XtreamAccount> accounts) {
