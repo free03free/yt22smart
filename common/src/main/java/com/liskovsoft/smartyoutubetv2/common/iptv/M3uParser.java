@@ -115,6 +115,7 @@ public final class M3uParser {
                 case "group-title": case "group": c.group = val; break;
                 case "user-agent": case "http-user-agent": c.userAgent = val; break;
                 case "referrer": case "http-referrer": c.referrer = val; break;
+                case "tvg-language": case "language": c.language = val; break;
                 default: break;
             }
         }

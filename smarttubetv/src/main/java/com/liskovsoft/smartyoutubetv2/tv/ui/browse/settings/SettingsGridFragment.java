@@ -107,7 +107,7 @@ public class SettingsGridFragment extends GridFragment implements SettingsSectio
         // Always clear (continuation not supported)
         clear();
 
-        if (group != null) {
+        if (group != null && group.getItems() != null) {
             for (SettingsItem item : group.getItems()) {
                 mSettingsAdapter.add(item);
             }

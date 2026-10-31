@@ -40,6 +40,24 @@ public final class IptvImporter {
         public int failures;
     }
 
+    /** Live progress hook. May throw a RuntimeException (e.g. CancellationException) to abort the import. */
+    public interface Progress {
+        /** @param status what is being done now (may be null) @param channels channels collected so far */
+        void onStep(String status, int channels);
+    }
+
+    private Progress mProgress;
+
+    public void setProgress(Progress progress) {
+        mProgress = progress;
+    }
+
+    private void report(String status) {
+        if (mProgress != null) {
+            mProgress.onStep(status, mResult == null ? 0 : mResult.playlist.size());
+        }
+    }
+
     private final IptvFetcher mFetcher;
     private final IptvOptions mOptions;
     private final ExternalArchiveHandler mArchiveHandler;
@@ -216,6 +234,8 @@ public final class IptvImporter {
             mResult.stalkerPortals++;
             mResult.listsDownloaded++;
             addAll(channels, groupHint);
+        } catch (java.util.concurrent.CancellationException e) {
+            throw e;
         } catch (IOException | RuntimeException e) {
             mResult.failures++;
             mResult.messages.add("Portal " + acc.host() + " did not return channels (expired MAC or blocked?)");
@@ -371,8 +391,11 @@ public final class IptvImporter {
             mResult.messages.add("Download limit (" + mOptions.maxFetches + ") reached, remaining links were skipped");
             return null;
         }
+        report("\u2193 " + IptvUrls.hostOf(url));
         try {
             return mFetcher.fetch(url);
+        } catch (java.util.concurrent.CancellationException e) {
+            throw e;
         } catch (IOException | RuntimeException e) {
             mResult.failures++;
             mResult.messages.add("Failed: " + IptvUrls.hostOf(url) + " (" + e.getMessage() + ")");
@@ -387,6 +410,7 @@ public final class IptvImporter {
             }
             mResult.playlist.add(c);
         }
+        report(null);
     }
 
     // ---------------------------------------------------------------- helpers

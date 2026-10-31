@@ -402,6 +402,9 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
             BrowseSection settings = mSectionsMapping.get(MediaGroup.TYPE_SETTINGS);
             if (settings != null) {
                 settings.setEnabled(true);
+                if (!mSections.contains(settings)) {
+                    mSections.add(settings); // must be known to findSectionById/findSectionIndex, otherwise the section opens empty
+                }
                 getView().addSection(index++, settings);
             }
         }
@@ -1245,6 +1248,10 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
             if (section.getId() == sectionId) {
                 return section;
             }
+        }
+
+        if (sectionId == MediaGroup.TYPE_SETTINGS) { // safety net: Settings is always available
+            return mSectionsMapping.get(MediaGroup.TYPE_SETTINGS);
         }
 
         return null;

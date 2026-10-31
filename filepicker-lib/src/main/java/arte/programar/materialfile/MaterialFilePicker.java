@@ -33,6 +33,7 @@ public class MaterialFilePicker {
     private Boolean mShowHidden = false;
     private Boolean mCloseable = true;
     private CharSequence mTitle;
+    private boolean mMultiSelect = false;
 
     public MaterialFilePicker() {
     }
@@ -144,6 +145,15 @@ public class MaterialFilePicker {
         return this;
     }
 
+    /**
+     * Several files (and folders) can be ticked; the picker stays open until "Done" is pressed.
+     * Result: {@link FilePickerActivity#RESULT_FILE_PATHS}
+     */
+    public MaterialFilePicker withMultiSelect(boolean multi) {
+        mMultiSelect = multi;
+        return this;
+    }
+
     public MaterialFilePicker withCustomActivity(Class<? extends FilePickerActivity> customActivityClass) {
         mFilePickerClass = customActivityClass;
         return this;
@@ -181,6 +191,8 @@ public class MaterialFilePicker {
         if (mTitle != null) {
             intent.putExtra(FilePickerActivity.ARG_TITLE, mTitle);
         }
+
+        intent.putExtra(FilePickerActivity.ARG_MULTI, mMultiSelect);
 
         return intent;
     }

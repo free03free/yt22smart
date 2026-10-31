@@ -17,7 +17,8 @@
         android:src="@drawable/ic_app_directory" />
 
     <androidx.appcompat.widget.LinearLayoutCompat
-        android:layout_width="match_parent"
+        android:layout_width="0dp"
+        android:layout_weight="1"
         android:layout_height="wrap_content"
         android:layout_gravity="center"
         android:layout_marginEnd="16dp"
@@ -38,5 +39,14 @@
             android:layout_height="wrap_content" />
 
     </androidx.appcompat.widget.LinearLayoutCompat>
+
+    <CheckBox
+        android:id="@+id/item_file_check"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_vertical"
+        android:clickable="false"
+        android:focusable="false"
+        android:visibility="gone" />
 
 </androidx.appcompat.widget.LinearLayoutCompat>

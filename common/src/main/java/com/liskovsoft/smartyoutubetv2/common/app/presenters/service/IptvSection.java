@@ -16,9 +16,11 @@ import com.liskovsoft.smartyoutubetv2.common.app.models.data.Video;
 import com.liskovsoft.smartyoutubetv2.common.app.models.playback.ui.UiOptionItem;
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.AppDialogPresenter;
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.BrowsePresenter;
+import com.liskovsoft.smartyoutubetv2.common.app.presenters.settings.IptvPreviewPresenter;
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.settings.IptvSettingsPresenter;
 import com.liskovsoft.smartyoutubetv2.common.iptv.HttpIptvFetcher;
 import com.liskovsoft.smartyoutubetv2.common.iptv.IptvChannel;
+import com.liskovsoft.smartyoutubetv2.common.iptv.IptvImportJob;
 import com.liskovsoft.smartyoutubetv2.common.iptv.IptvPlaylist;
 import com.liskovsoft.smartyoutubetv2.common.iptv.IptvPrefs;
 import com.liskovsoft.smartyoutubetv2.common.iptv.IptvStore;
@@ -31,6 +33,7 @@ import com.liskovsoft.smartyoutubetv2.common.utils.AppDialogUtil;
 import com.liskovsoft.smartyoutubetv2.common.utils.SimpleEditDialog;
 
 import java.io.IOException;
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -60,6 +63,7 @@ public final class IptvSection {
     private static final String K_PREV = MARK + "prev";
     private static final String K_SEARCH = MARK + "search";
     private static final String K_IMPORT = MARK + "import";
+    private static final String K_STATUS = MARK + "status";
 
     private static final String VIEW_ROOT = "";
     private static final String VIEW_FAVORITES = "fav";
@@ -95,6 +99,8 @@ public final class IptvSection {
 
     private static void buildRoot(Context context, IptvPlaylist library, IptvUserData user, List<Video> items) {
         Map<String, IptvChannel> byUrl = index(library);
+
+        addImportStatusCard(context, items);
 
         if (!library.isEmpty()) {
             items.add(card("\uD83D\uDD0D " + context.getString(R.string.iptv_section_search), null, K_SEARCH, null));
@@ -286,6 +292,8 @@ public final class IptvSection {
                     });
         } else if (key.equals(K_IMPORT)) {
             IptvSettingsPresenter.instance(context).show();
+        } else if (key.equals(K_STATUS)) {
+            onStatusClicked(context);
         }
 
         return true; // any "iptv:" card is ours, even an unknown one
@@ -477,6 +485,117 @@ public final class IptvSection {
     }
 
     // ------------------------------------------------------------------ refresh
+
+    // ------------------------------------------------------------------ import progress
+
+    private static final Handler MAIN = new Handler(Looper.getMainLooper());
+    private static WeakReference<Context> sContextRef = new WeakReference<>(null);
+
+    /** Called when an import starts: remembers where to show the progress / the final message. */
+    public static void attachJob(Context context) {
+        sContextRef = new WeakReference<>(context);
+        IptvImportJob.instance().setListener(finished -> MAIN.post(() -> onJobChanged(finished)));
+    }
+
+    private static void onJobChanged(boolean finished) {
+        Context context = sContextRef.get();
+        if (context == null) {
+            return;
+        }
+
+        IptvImportJob.Snapshot snap = IptvImportJob.instance().snapshot();
+
+        if (finished && snap.analyze) {
+            IptvImportJob job = IptvImportJob.instance();
+            if (snap.cancelled) {
+                MessageHelpers.showLongMessage(context, context.getString(R.string.iptv_import_cancelled));
+                job.takePending();
+                onLibraryChanged(context);
+                return;
+            }
+            IptvPlaylist found = job.takePending();
+            if (found.isEmpty()) {
+                MessageHelpers.showLongMessage(context, context.getString(R.string.iptv_nothing_found)
+                        + (snap.failed > 0 ? "\n" + context.getString(R.string.iptv_import_failed_count, snap.failed) : ""));
+                onLibraryChanged(context);
+                return;
+            }
+            job.dismissResult();
+            onLibraryChanged(context);
+            IptvPreviewPresenter.show(context, found);
+        } else if (finished) {
+            String message = snap.cancelled
+                    ? context.getString(R.string.iptv_import_cancelled)
+                    : context.getString(R.string.iptv_import_result, snap.added, IptvStore.instance(context).load().size());
+            if (snap.failed > 0) {
+                message += "\n" + context.getString(R.string.iptv_import_failed_count, snap.failed);
+            }
+            MessageHelpers.showLongMessage(context, message);
+            onLibraryChanged(context); // back to the root + redraw (the "done" card is there)
+        } else if (sView.isEmpty()) {
+            BrowseSection current = BrowsePresenter.instance(context).getCurrentSection();
+            if (current != null && current.getId() == SECTION_ID) {
+                redraw(context); // refresh the progress card
+            }
+        }
+    }
+
+    private static void addImportStatusCard(Context context, List<Video> items) {
+        IptvImportJob.Snapshot snap = IptvImportJob.instance().snapshot();
+
+        if (snap.running) {
+            String title = "\u23F3 " + context.getString(snap.analyze ? R.string.iptv_analyze_title : R.string.iptv_progress_title, snap.done, snap.total) + "  " + bar(snap.percent());
+            String current = snap.current.length() > 70 ? snap.current.substring(0, 70) + "\u2026" : snap.current;
+            String second = context.getString(R.string.iptv_progress_desc, snap.channels, formatTime(snap.elapsedMs))
+                    + (current.isEmpty() ? "" : "\n" + current);
+            items.add(card(title, second, K_STATUS, null));
+        } else if (snap.hasResult) {
+            String title = (snap.cancelled ? "\u26D4 " + context.getString(R.string.iptv_import_cancelled)
+                    : "\u2705 " + context.getString(R.string.iptv_done_title, snap.added));
+            String second = context.getString(R.string.iptv_done_desc, snap.done, snap.failed, formatTime(snap.elapsedMs));
+            items.add(card(title, second, K_STATUS, null));
+        }
+    }
+
+    private static String bar(int percent) {
+        int filled = Math.max(0, Math.min(10, percent / 10));
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < 10; i++) {
+            sb.append(i < filled ? '\u2588' : '\u2591');
+        }
+        return sb.append(' ').append(percent).append('%').toString();
+    }
+
+    private static String formatTime(long ms) {
+        long sec = ms / 1000;
+        return String.format(Locale.US, "%02d:%02d", sec / 60, sec % 60);
+    }
+
+    private static void onStatusClicked(Context context) {
+        final IptvImportJob job = IptvImportJob.instance();
+
+        if (job.isRunning()) {
+            confirm(context, context.getString(R.string.iptv_cancel_import), () -> {
+                job.cancel();
+                redraw(context);
+            });
+            return;
+        }
+
+        IptvImportJob.Snapshot snap = job.snapshot();
+        job.dismissResult();
+        redraw(context);
+
+        if (!snap.messages.isEmpty()) { // details of the files that failed
+            AppDialogPresenter dialog = AppDialogPresenter.instance(context);
+            List<com.liskovsoft.smartyoutubetv2.common.app.models.playback.ui.OptionItem> options = new ArrayList<>();
+            for (String m : snap.messages) {
+                options.add(UiOptionItem.from(m, option -> { }));
+            }
+            dialog.appendStringsCategory(context.getString(R.string.iptv_details), options);
+            dialog.showDialog(context.getString(R.string.iptv_title));
+        }
+    }
 
     private static void redraw(Context context) {
         BrowsePresenter.instance(context).refresh(false);

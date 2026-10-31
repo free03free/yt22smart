@@ -17,6 +17,8 @@ public class IptvChannel {
     public String tvgName;
     public String userAgent;
     public String referrer;
+    /** Only used while choosing what to import (tvg-language); not stored in the library. */
+    public String language;
     public int kind = KIND_LIVE;
 
     public IptvChannel() {

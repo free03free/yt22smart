@@ -7,7 +7,9 @@ import android.os.Handler;
 import android.text.TextUtils;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.widget.Button;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
@@ -20,6 +22,8 @@ import java.io.Serializable;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import java.util.List;
 import java.util.regex.Pattern;
 
@@ -35,9 +39,13 @@ public class FilePickerActivity extends AppCompatActivity implements DirectoryFr
     public static final String ARG_FILTER = "arg_filter";
     public static final String ARG_CLOSEABLE = "arg_closeable";
     public static final String ARG_TITLE = "arg_title";
+    public static final String ARG_MULTI = "arg_multi";
 
     public static final String STATE_START_FILE = "state_start_path";
     public static final String RESULT_FILE_PATH = "result_file_path";
+    /** String[] with every ticked file / folder (multi-select mode). RESULT_FILE_PATH holds the first one. */
+    public static final String RESULT_FILE_PATHS = "result_file_paths";
+    private static final String STATE_SELECTED = "state_selected";
     private static final String STATE_CURRENT_FILE = "state_current_path";
     private static final int HANDLE_CLICK_DELAY = 150;
 
@@ -51,6 +59,10 @@ public class FilePickerActivity extends AppCompatActivity implements DirectoryFr
     private Boolean mCloseable = true;
 
     private FileFilter mFilter;
+
+    private boolean mMulti;
+    private final Set<String> mSelected = new LinkedHashSet<>();
+    private Button mDoneButton;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -67,6 +79,7 @@ public class FilePickerActivity extends AppCompatActivity implements DirectoryFr
         initArguments(savedInstanceState);
         initViews();
         initToolbar();
+        initMultiSelect(savedInstanceState);
 
         if (savedInstanceState == null) {
             initBackStackState();
@@ -138,6 +151,44 @@ public class FilePickerActivity extends AppCompatActivity implements DirectoryFr
 
     private void initViews() {
         mToolbar = findViewById(R.id.toolbar);
+        mDoneButton = findViewById(R.id.file_picker_done);
+    }
+
+    private void initMultiSelect(Bundle savedInstanceState) {
+        mMulti = getIntent().getBooleanExtra(ARG_MULTI, false);
+
+        if (!mMulti) {
+            return;
+        }
+
+        if (savedInstanceState != null) {
+            String[] saved = savedInstanceState.getStringArray(STATE_SELECTED);
+            if (saved != null) {
+                Collections.addAll(mSelected, saved);
+            }
+        }
+
+        mDoneButton.setOnClickListener(v -> {
+            if (mSelected.isEmpty()) {
+                Toast.makeText(this, R.string.picker_select_hint, Toast.LENGTH_LONG).show();
+            } else {
+                setMultiResultAndFinish();
+            }
+        });
+        updateDoneButton();
+
+        if (savedInstanceState == null) {
+            Toast.makeText(this, R.string.picker_select_hint, Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void updateDoneButton() {
+        if (!mMulti || mDoneButton == null) {
+            return;
+        }
+
+        mDoneButton.setVisibility(android.view.View.VISIBLE);
+        mDoneButton.setText(getString(R.string.picker_done, mSelected.size()));
     }
 
     private void initBackStackState() {
@@ -222,6 +273,26 @@ public class FilePickerActivity extends AppCompatActivity implements DirectoryFr
         super.onSaveInstanceState(outState);
         outState.putSerializable(STATE_CURRENT_FILE, mCurrent);
         outState.putSerializable(STATE_START_FILE, mStart);
+        outState.putStringArray(STATE_SELECTED, mSelected.toArray(new String[0]));
+    }
+
+    @Override
+    public boolean isMultiSelect() {
+        return mMulti;
+    }
+
+    @Override
+    public boolean isSelected(File file) {
+        return mSelected.contains(file.getPath());
+    }
+
+    @Override
+    public void onFileToggled(File file) {
+        if (!mSelected.remove(file.getPath())) {
+            mSelected.add(file.getPath());
+        }
+
+        updateDoneButton();
     }
 
     @Override
@@ -246,6 +317,17 @@ public class FilePickerActivity extends AppCompatActivity implements DirectoryFr
         } else {
             setResultAndFinish(clickedFile);
         }
+    }
+
+    private void setMultiResultAndFinish() {
+        Intent data = new Intent();
+
+        String[] paths = mSelected.toArray(new String[0]);
+        data.putExtra(RESULT_FILE_PATHS, paths);
+        data.putExtra(RESULT_FILE_PATH, paths[0]);
+        setResult(RESULT_OK, data);
+
+        finish();
     }
 
     private void setResultAndFinish(File file) {

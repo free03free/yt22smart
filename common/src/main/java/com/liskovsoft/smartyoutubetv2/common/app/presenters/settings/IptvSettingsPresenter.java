@@ -9,8 +9,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
-import android.os.Handler;
-import android.os.Looper;
 
 import com.liskovsoft.sharedutils.helpers.MessageHelpers;
 import com.liskovsoft.sharedutils.helpers.PermissionHelpers;
@@ -24,7 +22,7 @@ import com.liskovsoft.smartyoutubetv2.common.app.presenters.service.IptvSection;
 import com.liskovsoft.smartyoutubetv2.common.iptv.CommonsArchiveHandler;
 import com.liskovsoft.smartyoutubetv2.common.iptv.HttpIptvFetcher;
 import com.liskovsoft.smartyoutubetv2.common.iptv.IptvChannel;
-import com.liskovsoft.smartyoutubetv2.common.iptv.IptvImporter;
+import com.liskovsoft.smartyoutubetv2.common.iptv.IptvImportJob;
 import com.liskovsoft.smartyoutubetv2.common.iptv.IptvOptions;
 import com.liskovsoft.smartyoutubetv2.common.iptv.IptvPrefs;
 import com.liskovsoft.smartyoutubetv2.common.iptv.IptvPlaylist;
@@ -54,10 +52,8 @@ public class IptvSettingsPresenter extends BasePresenter<Void> {
     private static final int PAGE_SIZE = 150;
     @SuppressLint("StaticFieldLeak")
     private static IptvSettingsPresenter sInstance;
-    private final Handler mMainHandler = new Handler(Looper.getMainLooper());
     private final IptvStore mStore;
     private final IptvPrefs mPrefs;
-    private volatile boolean mBusy;
 
     private IptvSettingsPresenter(Context context) {
         super(context);
@@ -85,6 +81,13 @@ public class IptvSettingsPresenter extends BasePresenter<Void> {
             AppDialogPresenter.instance(getContext()).closeDialog();
             BrowsePresenter.instance(getContext()).selectSection(IptvSection.SECTION_ID);
         }));
+        if (IptvPreviewPresenter.hasPending()) {
+            dialog.appendSingleButton(UiOptionItem.from(
+                    getContext().getString(R.string.iptv_preview_resume, IptvPreviewPresenter.pendingCount()), option -> {
+                        AppDialogPresenter.instance(getContext()).closeDialog();
+                        IptvPreviewPresenter.resume(getContext());
+                    }));
+        }
         dialog.appendRadioCategory(getContext().getString(R.string.iptv_player_mode), playerChoices());
         dialog.appendSingleButton(UiOptionItem.from(getContext().getString(R.string.iptv_import_link), getContext().getString(R.string.iptv_import_link_desc), option -> showLinkDialog()));
         dialog.appendSingleButton(UiOptionItem.from(getContext().getString(R.string.iptv_import_clipboard), option -> importFromClipboard()));
@@ -145,10 +148,16 @@ public class IptvSettingsPresenter extends BasePresenter<Void> {
         MotherActivity activity = (MotherActivity) getContext();
         activity.addOnResult((requestCode, resultCode, data) -> {
             if (requestCode == FILE_PICKER_REQUEST_CODE && resultCode == Activity.RESULT_OK && data != null) {
-                String path = data.getStringExtra(FilePickerActivity.RESULT_FILE_PATH);
-                if (path != null) {
-                    startImport(null, new File(path));
+                String[] paths = data.getStringArrayExtra(FilePickerActivity.RESULT_FILE_PATHS);
+                if (paths == null || paths.length == 0) {
+                    String single = data.getStringExtra(FilePickerActivity.RESULT_FILE_PATH);
+                    paths = single == null ? new String[0] : new String[]{single};
                 }
+                List<File> files = new ArrayList<>();
+                for (String path : paths) {
+                    files.add(new File(path));
+                }
+                startFiles(files);
             }
         });
 
@@ -175,44 +184,51 @@ public class IptvSettingsPresenter extends BasePresenter<Void> {
                 .withActivity(activity)
                 .withTitle(getContext().getString(R.string.iptv_import_file))
                 .withRootPath(root.getAbsolutePath())
+                .withMultiSelect(true) // tick several files / folders; the picker stays open until "Done"
                 .start(FILE_PICKER_REQUEST_CODE);
     }
 
-    /** Runs the (network + disk heavy) import off the UI thread. */
+    private void startFiles(List<File> files) {
+        startSources(IptvImportJob.expand(files));
+    }
+
+    /** Text / link / clipboard (text) or a single file. */
     private void startImport(String text, File file) {
-        if (mBusy) {
+        if (file != null) {
+            startFiles(java.util.Collections.singletonList(file));
+        } else {
+            List<IptvImportJob.Source> sources = new ArrayList<>();
+            sources.add(IptvImportJob.Source.ofText(getContext().getString(R.string.iptv_source_text), text));
+            startSources(sources);
+        }
+    }
+
+    /**
+     * Runs the (network + disk heavy) import in the background: all sources at the same time (up to 3 workers),
+     * the progress is shown in the IPTV sidebar section.
+     */
+    private void startSources(List<IptvImportJob.Source> sources) {
+        IptvImportJob job = IptvImportJob.instance();
+
+        if (job.isRunning()) {
+            IptvImportJob.Snapshot snap = job.snapshot();
+            MessageHelpers.showLongMessage(getContext(), getContext().getString(R.string.iptv_busy, snap.done, snap.total));
             return;
         }
-        mBusy = true;
-        MessageHelpers.showLongMessage(getContext(), getContext().getString(R.string.iptv_importing));
-        final Context context = getContext();
 
-        new Thread(() -> {
-            String message;
-            try {
-                IptvOptions options = mPrefs.load();
-                IptvImporter importer = new IptvImporter(new HttpIptvFetcher(options), options, new CommonsArchiveHandler());
-                IptvImporter.Result result = file != null ? importer.importFile(file) : importer.importText(text);
-                int added = mStore.merge(result.playlist);
-                message = result.playlist.isEmpty()
-                        ? context.getString(R.string.iptv_nothing_found) + firstNote(result)
-                        : context.getString(R.string.iptv_import_result, added, mStore.load().size());
-            } catch (Throwable t) {
-                message = context.getString(R.string.iptv_failed) + ": " + t.getMessage();
-            }
-            final String finalMessage = message;
-            mMainHandler.post(() -> {
-                mBusy = false;
-                MessageHelpers.showLongMessage(context, finalMessage);
-                IptvSection.onLibraryChanged(context);
-            });
-        }, "iptv-import").start();
+        if (sources.isEmpty()) {
+            MessageHelpers.showMessage(getContext(), R.string.iptv_nothing_found);
+            return;
+        }
+
+        IptvSection.attachJob(getContext());
+
+        boolean analyze = mPrefs.isPreviewEnabled();
+        if (job.start(sources, mPrefs.load(), mStore, analyze)) {
+            MessageHelpers.showLongMessage(getContext(), getContext().getString(
+                    analyze ? R.string.iptv_analyze_started : R.string.iptv_import_started, sources.size()));
+        }
     }
-
-    private static String firstNote(IptvImporter.Result r) {
-        return r.messages.isEmpty() ? "" : "\n" + r.messages.get(0);
-    }
-
 
     // ------------------------------------------------------------------ import settings
 
@@ -225,6 +241,10 @@ public class IptvSettingsPresenter extends BasePresenter<Void> {
     private void showImportSettings() {
         AppDialogPresenter d = AppDialogPresenter.instance(getContext());
         IptvOptions o = mPrefs.load();
+
+        d.appendSingleSwitch(UiOptionItem.from(getContext().getString(R.string.iptv_opt_preview),
+                getContext().getString(R.string.iptv_opt_preview_desc),
+                option -> mPrefs.setPreviewEnabled(option.isSelected()), mPrefs.isPreviewEnabled()));
 
         // downloads / links
         d.appendRadioCategory(getContext().getString(R.string.iptv_opt_max_fetches), intChoices(COUNT_CHOICES, o.maxFetches, "maxFetches"));

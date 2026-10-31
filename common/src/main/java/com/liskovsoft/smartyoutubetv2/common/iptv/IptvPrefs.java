@@ -52,6 +52,10 @@ public final class IptvPrefs {
     public int getPlayerMode() { return mPrefs.getInt("playerMode", PLAYER_INTERNAL); }
     public void setPlayerMode(int mode) { mPrefs.edit().putInt("playerMode", mode).apply(); }
 
+    /** Analyze the lists first and let the user choose groups / languages / channels (default). */
+    public boolean isPreviewEnabled() { return mPrefs.getBoolean("previewBeforeImport", true); }
+    public void setPreviewEnabled(boolean enabled) { mPrefs.edit().putBoolean("previewBeforeImport", enabled).apply(); }
+
     public void putInt(String key, int v) { mPrefs.edit().putInt(key, v).apply(); }
     public void putLong(String key, long v) { mPrefs.edit().putLong(key, v).apply(); }
     public void putBoolean(String key, boolean v) { mPrefs.edit().putBoolean(key, v).apply(); }

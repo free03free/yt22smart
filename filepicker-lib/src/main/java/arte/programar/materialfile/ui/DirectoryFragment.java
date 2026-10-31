@@ -76,16 +76,55 @@ public class DirectoryFragment extends Fragment {
         initFilesList();
     }
 
+    private long mLastDirClickMs;
+
     private void initFilesList() {
         mDirectoryAdapter = new DirectoryAdapter(FileUtils.getFileList(mFile, mFilter));
 
-        mDirectoryAdapter.setOnItemClickListener(new ThrottleClickListener() {
+        mDirectoryAdapter.setSelectionProvider(new DirectoryAdapter.SelectionProvider() {
             @Override
-            void onItemClickThrottled(View view, int position) {
-                if (mFileClickListener != null) {
-                    mFileClickListener.onFileClicked(mDirectoryAdapter.getModel(position));
-                }
+            public boolean isMultiSelect() {
+                return mFileClickListener != null && mFileClickListener.isMultiSelect();
             }
+
+            @Override
+            public boolean isSelected(File file) {
+                return mFileClickListener != null && mFileClickListener.isSelected(file);
+            }
+        });
+
+        mDirectoryAdapter.setOnItemClickListener((view, position) -> {
+            if (mFileClickListener == null) {
+                return;
+            }
+
+            File file = mDirectoryAdapter.getModel(position);
+
+            if (file.isDirectory()) {
+                // throttle only the navigation, so quick ticking of files is never dropped
+                long now = android.os.SystemClock.elapsedRealtime();
+                if (now - mLastDirClickMs < 600) {
+                    return;
+                }
+                mLastDirClickMs = now;
+                mFileClickListener.onFileClicked(file);
+            } else if (mFileClickListener.isMultiSelect()) {
+                // stay in place: just tick / untick the file
+                mFileClickListener.onFileToggled(file);
+                mDirectoryAdapter.notifyItemChanged(position);
+            } else {
+                mFileClickListener.onFileClicked(file);
+            }
+        });
+
+        mDirectoryAdapter.setOnItemLongClickListener((view, position) -> {
+            if (mFileClickListener == null || !mFileClickListener.isMultiSelect()) {
+                return;
+            }
+
+            // long press: tick a file or a whole folder
+            mFileClickListener.onFileToggled(mDirectoryAdapter.getModel(position));
+            mDirectoryAdapter.notifyItemChanged(position);
         });
 
         mDirectoryRecyclerView.setLayoutManager(new LinearLayoutManager(getActivity()));
@@ -105,5 +144,11 @@ public class DirectoryFragment extends Fragment {
 
     interface FileClickListener {
         void onFileClicked(File clickedFile);
+
+        boolean isMultiSelect();
+
+        boolean isSelected(File file);
+
+        void onFileToggled(File file);
     }
 }

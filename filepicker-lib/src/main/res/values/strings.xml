@@ -17,4 +17,6 @@
     <string name="type_word">Document</string>
     <string name="type_apk" translatable="false">APK</string>
     <string name="type_json" translatable="false">JSON</string>
+    <string name="picker_done">Done (%1$d)</string>
+    <string name="picker_select_hint">Tap files to select, long-press a folder to select all of it</string>
 </resources>

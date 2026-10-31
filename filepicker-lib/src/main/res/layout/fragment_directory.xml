@@ -7,6 +7,8 @@
         android:id="@+id/directory_recycler_view"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
+        android:clipToPadding="false"
+        android:paddingBottom="88dp"
         android:scrollbars="vertical" />
 
     <androidx.appcompat.widget.LinearLayoutCompat
