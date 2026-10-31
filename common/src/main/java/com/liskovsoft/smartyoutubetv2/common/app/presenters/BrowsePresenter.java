@@ -264,9 +264,8 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
         mSectionsMapping.put(MediaGroup.TYPE_NOTIFICATIONS, new BrowseSection(MediaGroup.TYPE_NOTIFICATIONS, getContext().getString(R.string.header_notifications), BrowseSection.TYPE_GRID, R.drawable.icon_notification, false));
         mSectionsMapping.put(MediaGroup.TYPE_PLAYBACK_QUEUE, new BrowseSection(MediaGroup.TYPE_PLAYBACK_QUEUE, getContext().getString(R.string.playback_queue_category_title), BrowseSection.TYPE_GRID, R.drawable.icon_queue, false));
 
-        if (getSidebarService().isSettingsSectionEnabled()) {
-            mSectionsMapping.put(MediaGroup.TYPE_SETTINGS, new BrowseSection(MediaGroup.TYPE_SETTINGS, getContext().getString(R.string.header_settings), BrowseSection.TYPE_SETTINGS_GRID, R.drawable.icon_settings));
-        }
+        // Always available: without it the user can not reach the app settings at all (the old "hide" flag caused lockouts)
+        mSectionsMapping.put(MediaGroup.TYPE_SETTINGS, new BrowseSection(MediaGroup.TYPE_SETTINGS, getContext().getString(R.string.header_settings), BrowseSection.TYPE_SETTINGS_GRID, R.drawable.icon_settings));
     }
 
     private void initRowAndGridMapping() {
@@ -377,18 +376,33 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
             getView().addSection(index++, section);
         }
 
-        for (BrowseSection section : mSections) { // contains sections and pinned items!
-            if (section.getId() == MediaGroup.TYPE_SETTINGS) {
-                section.setEnabled(true);
-            }
+        boolean settingsAdded = false;
 
-            if (section.isEnabled()) {
-                if (section.getId() == bootSectionId) {
-                    mBootSectionIndex = index;
+        for (BrowseSection section : mSections) { // contains sections and pinned items!
+            try {
+                if (section.getId() == MediaGroup.TYPE_SETTINGS) {
+                    section.setEnabled(true);
                 }
-                getView().addSection(index++, section);
-            } else {
-                getView().removeSection(section);
+
+                if (section.isEnabled()) {
+                    if (section.getId() == bootSectionId) {
+                        mBootSectionIndex = index;
+                    }
+                    getView().addSection(index++, section);
+                    settingsAdded |= section.getId() == MediaGroup.TYPE_SETTINGS;
+                } else {
+                    getView().removeSection(section);
+                }
+            } catch (RuntimeException e) {
+                Log.e(TAG, "Cannot add section " + section.getTitle() + ": " + e.getMessage()); // keep the other sections
+            }
+        }
+
+        if (!settingsAdded) { // Settings must always be reachable, even when the saved sidebar state lost it
+            BrowseSection settings = mSectionsMapping.get(MediaGroup.TYPE_SETTINGS);
+            if (settings != null) {
+                settings.setEnabled(true);
+                getView().addSection(index++, settings);
             }
         }
 
