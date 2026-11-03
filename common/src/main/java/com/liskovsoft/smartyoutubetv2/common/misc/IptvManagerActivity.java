@@ -1077,8 +1077,15 @@ public class IptvManagerActivity extends Activity {
             android.widget.ListView list = menu.getListView();
             if (list != null) {
                 list.setItemsCanFocus(false);
-                list.requestFocus();
-                list.post(() -> list.setSelection(0)); // the remote has a first item to move from
+                list.setSelector(new ColorDrawable(0x881E88E5)); // a clearly visible selected row
+                list.setDrawSelectorOnTop(false);
+                final Runnable selectFirst = () -> {
+                    list.requestFocusFromTouch(); // leaves touch mode, otherwise no row is shown as selected
+                    list.setSelection(0);
+                };
+                selectFirst.run();
+                list.post(selectFirst); // the first option is selected: the remote moves from there
+                list.postDelayed(selectFirst, 150);
             }
         });
         menu.show();
