@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="empty_directory_hint">المجلد فارغ</string>
+    <string name="picker_done">تم (%1$d)</string>
+    <string name="picker_select_hint">المس الملفات لتحديدها، واضغط مطولاً على مجلد لتحديد كل ما بداخله</string>
+</resources>
