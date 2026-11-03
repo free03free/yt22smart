@@ -92,6 +92,20 @@ public final class IptvPrefs {
      * Highest video height (in pixels) the built-in player may use: 0 = auto (no limit).
      * Saves data on slow / metered connections. Applies to channels, movies and series alike.
      */
+    // --- channel list shown over the video in the internal player ---
+    public static final int PANEL_LEFT = 0, PANEL_RIGHT = 1;
+    public int getPanelSide() { return mPrefs.getInt("panelSide", PANEL_LEFT); }
+    public void setPanelSide(int side) { mPrefs.edit().putInt("panelSide", side == PANEL_RIGHT ? PANEL_RIGHT : PANEL_LEFT).apply(); }
+    /** Background opacity of the panel, 20..100 percent. */
+    public int getPanelOpacity() { return mPrefs.getInt("panelOpacity", 90); }
+    public void setPanelOpacity(int pct) { mPrefs.edit().putInt("panelOpacity", Math.max(20, Math.min(100, pct))).apply(); }
+    /** Panel width as a percent of the screen width, 20..60. */
+    public int getPanelWidth() { return mPrefs.getInt("panelWidth", 34); }
+    public void setPanelWidth(int pct) { mPrefs.edit().putInt("panelWidth", Math.max(20, Math.min(60, pct))).apply(); }
+    /** Channel name size in sp, 12..30. */
+    public int getPanelFont() { return mPrefs.getInt("panelFont", 17); }
+    public void setPanelFont(int sp) { mPrefs.edit().putInt("panelFont", Math.max(12, Math.min(30, sp))).apply(); }
+
     public int getMaxQuality() { return mPrefs.getInt("maxQuality", 0); }
     public void setMaxQuality(int height) { mPrefs.edit().putInt("maxQuality", Math.max(0, height)).apply(); }
 

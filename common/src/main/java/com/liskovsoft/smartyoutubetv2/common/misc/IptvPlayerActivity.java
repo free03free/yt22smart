@@ -220,7 +220,7 @@ public class IptvPlayerActivity extends Activity {
 
     private void buildChannelPanel(FrameLayout root) {
         mChannelList = new ListView(this);
-        mChannelList.setBackgroundColor(0xE6101820);
+        mChannelList.setBackgroundColor(panelBackground());
         mChannelList.setDivider(null);
         mChannelList.setVerticalScrollBarEnabled(true);
         mChannelList.setItemsCanFocus(false);
@@ -248,7 +248,7 @@ public class IptvPlayerActivity extends Activity {
                 IptvChannel c = mQueue.get(position);
                 String name = c.name == null || c.name.trim().isEmpty() ? c.url : c.name;
                 row.setText((position + 1) + ".  " + name);
-                row.setTextSize(TypedValue.COMPLEX_UNIT_SP, 17);
+                row.setTextSize(TypedValue.COMPLEX_UNIT_SP, IptvPrefs.instance(IptvPlayerActivity.this).getPanelFont());
                 row.setTextColor(position == mIndex ? 0xFFFFC107 : Color.WHITE);
                 row.setSingleLine(true);
                 row.setEllipsize(android.text.TextUtils.TruncateAt.END);
@@ -263,9 +263,29 @@ public class IptvPlayerActivity extends Activity {
                 playChannel(position);
             }
         });
+        root.addView(mChannelList, new FrameLayout.LayoutParams(panelWidth(), ViewGroup.LayoutParams.MATCH_PARENT, panelGravity()));
+    }
+
+    private int panelBackground() {
+        int alpha = Math.round(IptvPrefs.instance(this).getPanelOpacity() * 255f / 100f);
+        return (alpha << 24) | 0x101820;
+    }
+
+    private int panelWidth() {
         int screenW = getResources().getDisplayMetrics().widthPixels;
-        int width = Math.max(dp(240), Math.min(dp(460), Math.round(screenW * 0.34f)));
-        root.addView(mChannelList, new FrameLayout.LayoutParams(width, ViewGroup.LayoutParams.MATCH_PARENT, Gravity.START));
+        return Math.round(screenW * IptvPrefs.instance(this).getPanelWidth() / 100f);
+    }
+
+    /** Physical left / right of the screen, whatever the layout direction of the language is. */
+    private int panelGravity() {
+        return IptvPrefs.instance(this).getPanelSide() == IptvPrefs.PANEL_RIGHT ? (Gravity.RIGHT | Gravity.FILL_VERTICAL) : (Gravity.LEFT | Gravity.FILL_VERTICAL);
+    }
+
+    /** The settings can change in the manager, so the panel re-reads them each time it opens. */
+    private void applyPanelSettings() {
+        mChannelList.setBackgroundColor(panelBackground());
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(panelWidth(), ViewGroup.LayoutParams.MATCH_PARENT, panelGravity());
+        mChannelList.setLayoutParams(lp);
     }
 
     private boolean isChannelPanelShown() {
@@ -274,6 +294,7 @@ public class IptvPlayerActivity extends Activity {
 
     private void showChannelPanel() {
         mPlayerView.hideController();
+        applyPanelSettings();
         mChannelAdapter.notifyDataSetChanged();
         mChannelList.setVisibility(View.VISIBLE);
         mChannelList.requestFocus();

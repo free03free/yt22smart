@@ -297,7 +297,7 @@ public class IptvManagerActivity extends Activity {
         bar.setGravity(Gravity.CENTER);
         bar.addView(barButton(getString(R.string.iptv_mgr_btn_delete), Color.parseColor("#D32F2F"), this::deleteTargets));
         bar.addView(barButton(getString(R.string.iptv_mgr_btn_skip), Color.parseColor("#388E3C"), this::toggleSkip));
-        bar.addView(barButton(getString(R.string.iptv_mgr_btn_move), Color.parseColor("#F9A825"), this::startMove));
+        bar.addView(barButton(getString(R.string.iptv_mgr_btn_move), Color.parseColor("#F9A825"), this::onMoveButton));
         bar.addView(barButton(getString(R.string.iptv_mgr_btn_edit), Color.parseColor("#1976D2"), this::renameCurrent));
         bar.addView(barButton(getString(R.string.iptv_mgr_btn_menu), Color.parseColor("#546E7A"), this::showMenu));
         return bar;
@@ -426,6 +426,8 @@ public class IptvManagerActivity extends Activity {
         mScopeView.setText(title);
         if (mMoving) {
             mInfoView.setText(getString(R.string.iptv_mgr_moving_hint));
+        } else if (mMultiMode) {
+            mInfoView.setText(getString(R.string.iptv_mgr_multi_hint, mMarked.size()));
         } else if (mDigits.length() > 0) {
             mInfoView.setText("\u2192 " + mDigits);
         } else if (!mMarked.isEmpty()) {
@@ -588,6 +590,23 @@ public class IptvManagerActivity extends Activity {
 
     // ------------------------------------------------------------------ move
 
+    /** The Move button: one channel is moved by hand; several marked channels move together to a place chosen from a menu. */
+    private void onMoveButton() {
+        if (mMoving) {
+            return;
+        }
+        if (mMarked.isEmpty()) {
+            startMove();
+            return;
+        }
+        List<String> labels = new ArrayList<>();
+        List<Runnable> actions = new ArrayList<>();
+        add(labels, actions, getString(R.string.iptv_mgr_move_marked_top), () -> moveMarked(IptvPlaylist.MOVE_TOP));
+        add(labels, actions, getString(R.string.iptv_mgr_move_marked_bottom), () -> moveMarked(IptvPlaylist.MOVE_BOTTOM));
+        add(labels, actions, getString(R.string.iptv_mgr_move_marked_here), () -> moveMarked(IptvPlaylist.MOVE_BEFORE));
+        openMenuOverlay(getString(R.string.iptv_mgr_marked_count, mMarked.size()), labels, actions);
+    }
+
     private void startMove() {
         if (mMoving || current() == null) {
             return;
@@ -731,9 +750,16 @@ public class IptvManagerActivity extends Activity {
 
     // ------------------------------------------------------------------ channel actions
 
+    // Multi-select mode: OK (or a tap) marks / unmarks a channel instead of playing it, until the mode is left.
+    private boolean mMultiMode;
+
     private void onOk() {
         if (mMoving) {
             finishMove(true);
+            return;
+        }
+        if (mMultiMode) {
+            toggleMark();
             return;
         }
         playCurrent();
@@ -979,6 +1005,20 @@ public class IptvManagerActivity extends Activity {
         final boolean multi = !mMarked.isEmpty();
 
         if (channel != null) {
+            if (mMultiMode) {
+                add(labels, actions, getString(R.string.iptv_mgr_multi_end), () -> {
+                    mMultiMode = false;
+                    refresh();
+                });
+            } else {
+                add(labels, actions, getString(R.string.iptv_mgr_multi), () -> {
+                    mMultiMode = true;
+                    if (!mMarked.contains(channel.key())) {
+                        mMarked.add(channel.key());
+                    }
+                    refresh();
+                });
+            }
             List<String> urls = targets();
             boolean allFav = mFavSet.containsAll(urls);
             boolean allLocked = mLockedSet.containsAll(urls);
@@ -1045,6 +1085,9 @@ public class IptvManagerActivity extends Activity {
                 refresh();
             });
         }
+        if (mPrefs.getPlayerMode() == IptvPrefs.PLAYER_INTERNAL) {
+            add(labels, actions, getString(R.string.iptv_panel_settings), () -> showPanelSettings(0));
+        }
         add(labels, actions, getString(R.string.iptv_mgr_bundles), this::showBundleManager);
         add(labels, actions, getString(R.string.iptv_section_search), this::askSearch);
         if (!mFilter.isEmpty()) {
@@ -1056,6 +1099,48 @@ public class IptvManagerActivity extends Activity {
         add(labels, actions, getString(R.string.iptv_mgr_pin_change), () -> IptvPin.change(this));
 
         openMenuOverlay(channel == null ? getString(R.string.iptv_mgr_title) : displayName(channel), labels, actions);
+    }
+
+    private static final int[] PANEL_OPACITY_STEPS = {100, 90, 80, 70, 60, 50, 40, 30};
+    private static final int[] PANEL_WIDTH_STEPS = {24, 28, 34, 40, 46, 52, 60};
+    private static final int[] PANEL_FONT_STEPS = {14, 16, 17, 18, 20, 22, 24, 28};
+
+    /** The step after the one closest to the current value; after the last one it starts again from the first. */
+    private static int nextStep(int[] steps, int current) {
+        int best = 0;
+        for (int i = 1; i < steps.length; i++) {
+            if (Math.abs(steps[i] - current) < Math.abs(steps[best] - current)) {
+                best = i;
+            }
+        }
+        return steps[(best + 1) % steps.length];
+    }
+
+    /** Settings of the channel list shown over the video in the player; every tap on a line changes it to the next value. */
+    private void showPanelSettings(final int selected) {
+        final List<String> labels = new ArrayList<>();
+        final List<Runnable> actions = new ArrayList<>();
+        boolean right = mPrefs.getPanelSide() == IptvPrefs.PANEL_RIGHT;
+        add(labels, actions, getString(R.string.iptv_panel_side, getString(right ? R.string.iptv_panel_right : R.string.iptv_panel_left)), () -> {
+            mPrefs.setPanelSide(mPrefs.getPanelSide() == IptvPrefs.PANEL_RIGHT ? IptvPrefs.PANEL_LEFT : IptvPrefs.PANEL_RIGHT);
+            showPanelSettings(0);
+        });
+        add(labels, actions, getString(R.string.iptv_panel_transparency, 100 - mPrefs.getPanelOpacity()), () -> {
+            mPrefs.setPanelOpacity(nextStep(PANEL_OPACITY_STEPS, mPrefs.getPanelOpacity()));
+            showPanelSettings(1);
+        });
+        add(labels, actions, getString(R.string.iptv_panel_width, mPrefs.getPanelWidth()), () -> {
+            mPrefs.setPanelWidth(nextStep(PANEL_WIDTH_STEPS, mPrefs.getPanelWidth()));
+            showPanelSettings(2);
+        });
+        add(labels, actions, getString(R.string.iptv_panel_font, mPrefs.getPanelFont()), () -> {
+            mPrefs.setPanelFont(nextStep(PANEL_FONT_STEPS, mPrefs.getPanelFont()));
+            showPanelSettings(3);
+        });
+        openMenuOverlay(getString(R.string.iptv_panel_settings), labels, actions);
+        if (selected > 0) {
+            moveMenuSelection(selected);
+        }
     }
 
     // The options menu is a layer inside this activity (not a dialog window): a dialog opened by a long press often
@@ -1621,7 +1706,7 @@ public class IptvManagerActivity extends Activity {
             case KeyEvent.KEYCODE_PROG_YELLOW:
             case KeyEvent.KEYCODE_M:
                 if (first) {
-                    startMove();
+                    onMoveButton();
                 }
                 return true;
             case KeyEvent.KEYCODE_PROG_BLUE:
@@ -1714,6 +1799,9 @@ public class IptvManagerActivity extends Activity {
             setMiniFocus(false);
         } else if (mMoving) {
             finishMove(false);
+        } else if (mMultiMode) {
+            mMultiMode = false; // leaves the mode, the marks stay for the next action
+            refresh();
         } else if (!mFilter.isEmpty()) {
             mFilter = "";
             reload();
@@ -1779,7 +1867,10 @@ public class IptvManagerActivity extends Activity {
                 }
                 // touch: tap selects, tap again plays, long tap = menu, the columns toggle directly
                 row.setOnClickListener(v -> {
-                    if (holder.position == mCursor) {
+                    if (mMultiMode && !mMoving) {
+                        mCursor = holder.position;
+                        toggleMark();
+                    } else if (holder.position == mCursor) {
                         onOk();
                     } else if (!mMoving) {
                         setCursor(holder.position);

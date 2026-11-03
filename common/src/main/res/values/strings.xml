@@ -1452,4 +1452,14 @@
     <string name="iptv_sat_rep_inputs">TV inputs: %1$s</string>
     <string name="iptv_sat_rep_apps">Apps that look like satellite / live TV: %1$s</string>
     <string name="iptv_sat_rep_none">none</string>
+    <string name="iptv_panel_settings">Player channel list settings</string>
+    <string name="iptv_panel_side">Position: %1$s</string>
+    <string name="iptv_panel_left">Left</string>
+    <string name="iptv_panel_right">Right</string>
+    <string name="iptv_panel_transparency">Transparency: %1$d%%</string>
+    <string name="iptv_panel_width">List width: %1$d%%</string>
+    <string name="iptv_panel_font">Channel font size: %1$d</string>
+    <string name="iptv_mgr_multi">Multi-select</string>
+    <string name="iptv_mgr_multi_end">Finish multi-select</string>
+    <string name="iptv_mgr_multi_hint">Multi-select: %1$d marked   •   OK mark / unmark   •   hold OK for actions   •   Back finish</string>
 </resources>
