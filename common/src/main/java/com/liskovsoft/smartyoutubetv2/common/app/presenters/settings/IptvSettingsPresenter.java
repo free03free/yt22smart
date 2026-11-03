@@ -230,13 +230,19 @@ public class IptvSettingsPresenter extends BasePresenter<Void> {
 
     private void showSatAppPicker() {
         final Context ctx = getContext();
-        List<IptvSatellite.AppEntry> apps = IptvSatellite.installedApps(ctx);
+        List<IptvSatellite.AppEntry> apps = IptvSatellite.installedApps(ctx, mPrefs.isSatShowSystem());
         if (apps.isEmpty()) {
             MessageHelpers.showLongMessage(ctx, ctx.getString(R.string.iptv_sat_no_apps));
             postLater(this::showSatellite);
             return;
         }
         AppDialogPresenter d = AppDialogPresenter.instance(ctx);
+        d.appendSingleSwitch(UiOptionItem.from(ctx.getString(R.string.iptv_sat_show_system),
+                ctx.getString(R.string.iptv_sat_show_system_desc), option -> {
+                    mPrefs.setSatShowSystem(option.isSelected());
+                    AppDialogPresenter.instance(ctx).closeDialog();
+                    postLater(this::showSatAppPicker);
+                }, mPrefs.isSatShowSystem()));
         List<OptionItem> items = new ArrayList<>();
         for (final IptvSatellite.AppEntry app : apps) {
             items.add(UiOptionItem.from((app.suggested ? "\u2605 " : "") + app.label, app.pkg, o -> {

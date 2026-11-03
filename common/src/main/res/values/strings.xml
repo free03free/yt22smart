@@ -1414,6 +1414,8 @@
     <string name="iptv_mgr_fixed_set">Fixed number: %1$d</string>
     <string name="iptv_mini_play_full">Play full screen</string>
     <string name="iptv_mini_expand">Small window to full screen</string>
+    <string name="iptv_mini_sel_turn_off">Left/Right with the small window: switch groups (turn off window selection)</string>
+    <string name="iptv_mini_sel_turn_on">Left/Right with the small window: select the window (turn on)</string>
     <string name="iptv_mini_close">Close the small window</string>
     <string name="iptv_mini_turn_off">Small window: turn off (OK plays full screen)</string>
     <string name="iptv_mini_turn_on">Small window: turn on (OK plays in a small window)</string>
@@ -1440,6 +1442,8 @@
     <string name="iptv_sat_card">Satellite channels (receiver)</string>
     <string name="iptv_sat_card_desc">Opens the receiver\'s own channels</string>
     <string name="iptv_sat_failed">Could not open: %1$s</string>
+    <string name="iptv_sat_show_system">Show system apps</string>
+    <string name="iptv_sat_show_system_desc">Also list system apps that have no launcher icon</string>
     <string name="iptv_sat_no_apps">No apps found</string>
     <string name="iptv_sat_no_inputs">This device reports no TV inputs</string>
     <string name="iptv_sat_rep_home">Home screen app: %1$s</string>

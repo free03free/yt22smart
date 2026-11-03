@@ -1406,6 +1406,8 @@
     <string name="iptv_mgr_fixed_set">الرقم الثابت: %1$d</string>
     <string name="iptv_mini_play_full">تشغيل بملء الشاشة</string>
     <string name="iptv_mini_expand">تكبير النافذة المصغرة</string>
+    <string name="iptv_mini_sel_turn_off">يمين/يسار مع النافذة المصغّرة: التنقل بين المجموعات (إيقاف اختيار النافذة)</string>
+    <string name="iptv_mini_sel_turn_on">يمين/يسار مع النافذة المصغّرة: اختيار النافذة بدل التنقل بين المجموعات (تشغيل)</string>
     <string name="iptv_mini_close">إغلاق النافذة المصغرة</string>
     <string name="iptv_mini_turn_off">النافذة المصغرة: إيقاف (OK يشغّل بملء الشاشة)</string>
     <string name="iptv_mini_turn_on">النافذة المصغرة: تفعيل (OK يشغّل في نافذة صغيرة)</string>
@@ -1432,6 +1434,8 @@
     <string name="iptv_sat_card">قنوات الساتلايت (الرسيفر)</string>
     <string name="iptv_sat_card_desc">يفتح قنوات الرسيفر نفسه</string>
     <string name="iptv_sat_failed">تعذّر الفتح: %1$s</string>
+    <string name="iptv_sat_show_system">إظهار تطبيقات النظام</string>
+    <string name="iptv_sat_show_system_desc">عرض تطبيقات النظام التي ليس لها أيقونة تشغيل أيضاً</string>
     <string name="iptv_sat_no_apps">لم يُعثر على تطبيقات</string>
     <string name="iptv_sat_no_inputs">هذا الجهاز لا يعرض أي مصدر إدخال TV</string>
     <string name="iptv_sat_rep_home">تطبيق الشاشة الرئيسية: %1$s</string>

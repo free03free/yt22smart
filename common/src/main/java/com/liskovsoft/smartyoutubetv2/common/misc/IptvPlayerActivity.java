@@ -16,7 +16,9 @@ import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
+import android.widget.BaseAdapter;
 import android.widget.FrameLayout;
+import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -111,6 +113,10 @@ public class IptvPlayerActivity extends Activity {
     private TextView mTitleView;
     private TextView mStatusView;
     private TextView mQualityView;
+    /** Side list of the channels, opened with OK over the picture. */
+    private ListView mChannelList;
+    private BaseAdapter mChannelAdapter;
+    private boolean mSwallowCenterUp;
     private DefaultTrackSelector mTrackSelector;
     private Dialog mQualityDialog;
     /** Variants of the current video (1 = the stream offers a single quality) and the height of the selected one. */
@@ -206,8 +212,85 @@ public class IptvPlayerActivity extends Activity {
         // the quality button is shown together with the playback controls
         mPlayerView.setControllerVisibilityListener(visibility -> mQualityView.setVisibility(visibility == View.VISIBLE ? View.VISIBLE : View.GONE));
 
+        buildChannelPanel(root);
+
         setContentView(root);
         hideSystemUi();
+    }
+
+    private void buildChannelPanel(FrameLayout root) {
+        mChannelList = new ListView(this);
+        mChannelList.setBackgroundColor(0xE6101820);
+        mChannelList.setDivider(null);
+        mChannelList.setVerticalScrollBarEnabled(true);
+        mChannelList.setItemsCanFocus(false);
+        mChannelList.setSelector(new android.graphics.drawable.ColorDrawable(0xCC1E88E5));
+        mChannelList.setVisibility(View.GONE);
+        mChannelAdapter = new BaseAdapter() {
+            @Override
+            public int getCount() {
+                return mQueue.size();
+            }
+
+            @Override
+            public Object getItem(int position) {
+                return mQueue.get(position);
+            }
+
+            @Override
+            public long getItemId(int position) {
+                return position;
+            }
+
+            @Override
+            public View getView(int position, View convertView, ViewGroup parent) {
+                TextView row = convertView instanceof TextView ? (TextView) convertView : new TextView(IptvPlayerActivity.this);
+                IptvChannel c = mQueue.get(position);
+                String name = c.name == null || c.name.trim().isEmpty() ? c.url : c.name;
+                row.setText((position + 1) + ".  " + name);
+                row.setTextSize(TypedValue.COMPLEX_UNIT_SP, 17);
+                row.setTextColor(position == mIndex ? 0xFFFFC107 : Color.WHITE);
+                row.setSingleLine(true);
+                row.setEllipsize(android.text.TextUtils.TruncateAt.END);
+                row.setPadding(dp(14), dp(10), dp(14), dp(10));
+                return row;
+            }
+        };
+        mChannelList.setAdapter(mChannelAdapter);
+        mChannelList.setOnItemClickListener((parent, view, position, id) -> {
+            hideChannelPanel();
+            if (position != mIndex) {
+                playChannel(position);
+            }
+        });
+        int screenW = getResources().getDisplayMetrics().widthPixels;
+        int width = Math.max(dp(240), Math.min(dp(460), Math.round(screenW * 0.34f)));
+        root.addView(mChannelList, new FrameLayout.LayoutParams(width, ViewGroup.LayoutParams.MATCH_PARENT, Gravity.START));
+    }
+
+    private boolean isChannelPanelShown() {
+        return mChannelList != null && mChannelList.getVisibility() == View.VISIBLE;
+    }
+
+    private void showChannelPanel() {
+        mPlayerView.hideController();
+        mChannelAdapter.notifyDataSetChanged();
+        mChannelList.setVisibility(View.VISIBLE);
+        mChannelList.requestFocus();
+        mChannelList.post(() -> mChannelList.setSelectionFromTop(mIndex, dp(80)));
+    }
+
+    private void hideChannelPanel() {
+        mChannelList.setVisibility(View.GONE);
+    }
+
+    @Override
+    public void onBackPressed() {
+        if (isChannelPanelShown()) {
+            hideChannelPanel();
+            return;
+        }
+        super.onBackPressed();
     }
 
     private TextView overlayText(int gravity, int sp) {
@@ -710,6 +793,26 @@ public class IptvPlayerActivity extends Activity {
                 && (event.getKeyCode() == KeyEvent.KEYCODE_MENU || event.getKeyCode() == KeyEvent.KEYCODE_SETTINGS)) {
             showQualityDialog();
             return true;
+        }
+
+        int code = event.getKeyCode();
+        boolean center = code == KeyEvent.KEYCODE_DPAD_CENTER || code == KeyEvent.KEYCODE_ENTER || code == KeyEvent.KEYCODE_NUMPAD_ENTER;
+        if (center && !isChannelPanelShown() && getCurrentFocus() != mQualityView) {
+            // OK over the picture: the list of channels slides in on the side
+            if (event.getAction() == KeyEvent.ACTION_DOWN) {
+                if (event.getRepeatCount() == 0) {
+                    mSwallowCenterUp = true;
+                    showChannelPanel();
+                }
+                return true;
+            }
+            if (mSwallowCenterUp) {
+                mSwallowCenterUp = false;
+                return true;
+            }
+        }
+        if (isChannelPanelShown()) {
+            return super.dispatchKeyEvent(event); // the list handles the arrows and OK itself
         }
 
         if (event.getAction() == KeyEvent.ACTION_DOWN && mQueue.size() > 1) {

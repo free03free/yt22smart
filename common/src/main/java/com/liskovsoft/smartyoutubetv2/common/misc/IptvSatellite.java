@@ -225,6 +225,14 @@ public final class IptvSatellite {
 
     /** Every app that has a launcher icon (TV or phone style), without this app; likely satellite apps first. */
     public static List<AppEntry> installedApps(Context context) {
+        return installedApps(context, false);
+    }
+
+    /**
+     * Same as above; with includeSystem also the system apps that have no launcher icon (shown by their first activity,
+     * as "package/activity").
+     */
+    public static List<AppEntry> installedApps(Context context, boolean includeSystem) {
         PackageManager pm = context.getPackageManager();
         List<AppEntry> result = new ArrayList<>();
         Set<String> seen = new HashSet<>();
@@ -253,6 +261,9 @@ public final class IptvSatellite {
                 // keep what was found
             }
         }
+        if (includeSystem) {
+            addSystemApps(pm, seen, result);
+        }
         final Collator collator = Collator.getInstance();
         Collections.sort(result, new Comparator<AppEntry>() {
             @Override
@@ -264,6 +275,35 @@ public final class IptvSatellite {
             }
         });
         return result;
+    }
+
+    private static void addSystemApps(PackageManager pm, Set<String> seen, List<AppEntry> result) {
+        try {
+            for (android.content.pm.PackageInfo pi : pm.getInstalledPackages(PackageManager.GET_ACTIVITIES)) {
+                if (pi.applicationInfo == null || (pi.applicationInfo.flags & android.content.pm.ApplicationInfo.FLAG_SYSTEM) == 0
+                        || pi.activities == null || !seen.add(pi.packageName)) {
+                    continue;
+                }
+                android.content.pm.ActivityInfo first = null;
+                for (android.content.pm.ActivityInfo a : pi.activities) {
+                    if (a.exported && a.enabled) {
+                        first = a;
+                        break;
+                    }
+                }
+                if (first == null) {
+                    continue;
+                }
+                AppEntry app = new AppEntry();
+                app.pkg = pi.packageName + "/" + first.name;
+                CharSequence label = pi.applicationInfo.loadLabel(pm);
+                app.label = (label == null ? pi.packageName : label.toString()) + " [" + pi.packageName + "]";
+                app.suggested = looksLikeSatellite(app.label, pi.packageName);
+                result.add(app);
+            }
+        } catch (Throwable ignored) {
+            // keep what was found
+        }
     }
 
     private static boolean looksLikeSatellite(String label, String pkg) {

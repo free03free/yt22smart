@@ -127,6 +127,8 @@ public class IptvManagerActivity extends Activity {
     /** Small window that keeps playing while the user browses; tap / OK on the playing channel = full screen. */
     private IptvMiniPlayer mMini;
     private boolean mResumeMini;
+    /** The small window is the selected item (instead of the channel list); Back / arrows return to the channels of the group. */
+    private boolean mMiniFocused;
     private RowsAdapter mAdapter;
 
     // ------------------------------------------------------------------ lifecycle
@@ -402,7 +404,18 @@ public class IptvManagerActivity extends Activity {
         refresh();
     }
 
+    private void setMiniFocus(boolean on) {
+        on = on && mMini.hasChannel();
+        if (mMiniFocused != on) {
+            mMiniFocused = on;
+            mMini.setSelected(on);
+        }
+    }
+
     private void refresh() {
+        if (mMiniFocused && !mMini.hasChannel()) { // the window was closed: back to the normal state
+            setMiniFocus(false);
+        }
         String title = scopeTitle(mScopes.get(mScopeIdx)) + "  (" + mRows.size() + ")";
         if (!mFilter.isEmpty()) {
             title += "  \uD83D\uDD0D " + mFilter;
@@ -491,6 +504,7 @@ public class IptvManagerActivity extends Activity {
         if (mMoving) {
             return;
         }
+        setMiniFocus(false);
         mScopeIdx = (mScopeIdx + delta + mScopes.size()) % mScopes.size();
         mCursor = 0;
         mMarked.clear();
@@ -1007,6 +1021,7 @@ public class IptvManagerActivity extends Activity {
             add(labels, actions, getString(R.string.iptv_mini_expand), this::expandMini);
             add(labels, actions, getString(R.string.iptv_mini_close), () -> {
                 mMini.close();
+                setMiniFocus(false);
                 refresh();
             });
         }
@@ -1017,6 +1032,13 @@ public class IptvManagerActivity extends Activity {
                 if (!on) {
                     mMini.close();
                 }
+                refresh();
+            });
+        }
+        if (miniEnabled()) {
+            add(labels, actions, getString(mPrefs.isMiniSelect() ? R.string.iptv_mini_sel_turn_off : R.string.iptv_mini_sel_turn_on), () -> {
+                mPrefs.setMiniSelect(!mPrefs.isMiniSelect());
+                setMiniFocus(false);
                 refresh();
             });
         }
@@ -1259,6 +1281,35 @@ public class IptvManagerActivity extends Activity {
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
         boolean first = event.getRepeatCount() == 0;
+        if (mMiniFocused && !mMini.hasChannel()) {
+            setMiniFocus(false);
+        }
+        if (mMiniFocused) { // the small window is selected
+            switch (keyCode) {
+                case KeyEvent.KEYCODE_DPAD_CENTER:
+                case KeyEvent.KEYCODE_ENTER:
+                case KeyEvent.KEYCODE_NUMPAD_ENTER:
+                    if (first) {
+                        mCenterLong = false;
+                    }
+                    event.startTracking(); // OK = full screen, long OK = close the window
+                    return true;
+                case KeyEvent.KEYCODE_DPAD_UP:
+                case KeyEvent.KEYCODE_DPAD_DOWN:
+                case KeyEvent.KEYCODE_DPAD_LEFT:
+                case KeyEvent.KEYCODE_DPAD_RIGHT:
+                case KeyEvent.KEYCODE_PAGE_UP:
+                case KeyEvent.KEYCODE_PAGE_DOWN:
+                case KeyEvent.KEYCODE_CHANNEL_UP:
+                case KeyEvent.KEYCODE_CHANNEL_DOWN:
+                    if (first) {
+                        setMiniFocus(false); // back to the channels of the selected group
+                    }
+                    return true;
+                default:
+                    break;
+            }
+        }
         switch (keyCode) {
             case KeyEvent.KEYCODE_DPAD_UP:
                 moveCursor(-1);
@@ -1275,13 +1326,13 @@ public class IptvManagerActivity extends Activity {
                 moveCursor(PAGE_JUMP);
                 return true;
             case KeyEvent.KEYCODE_DPAD_LEFT:
-                if (first) {
-                    changeScope(-1);
-                }
-                return true;
             case KeyEvent.KEYCODE_DPAD_RIGHT:
                 if (first) {
-                    changeScope(1);
+                    if (!mMoving && mMini.hasChannel() && miniEnabled() && mPrefs.isMiniSelect()) {
+                        setMiniFocus(true); // select the small window instead of switching between groups
+                    } else {
+                        changeScope(keyCode == KeyEvent.KEYCODE_DPAD_LEFT ? -1 : 1);
+                    }
                 }
                 return true;
             case KeyEvent.KEYCODE_DPAD_CENTER:
@@ -1376,6 +1427,13 @@ public class IptvManagerActivity extends Activity {
 
     @Override
     public boolean onKeyLongPress(int keyCode, KeyEvent event) {
+        if (mMiniFocused && (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER || keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER)) {
+            mCenterLong = true; // swallow the key-up
+            mMini.close();
+            setMiniFocus(false); // closed: everything is as before
+            refresh();
+            return true;
+        }
         if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER || keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER) {
             openMenuFromLongPress();
             return true;
@@ -1391,7 +1449,11 @@ public class IptvManagerActivity extends Activity {
                 return true;
             }
             if (event.isTracking() && !event.isCanceled()) {
-                onOk();
+                if (mMiniFocused) {
+                    expandMini();
+                } else {
+                    onOk();
+                }
             }
             return true;
         }
@@ -1400,7 +1462,9 @@ public class IptvManagerActivity extends Activity {
 
     @Override
     public void onBackPressed() {
-        if (mMoving) {
+        if (mMiniFocused) {
+            setMiniFocus(false);
+        } else if (mMoving) {
             finishMove(false);
         } else if (!mFilter.isEmpty()) {
             mFilter = "";

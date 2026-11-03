@@ -137,6 +137,13 @@ final class IptvMiniPlayer {
         return mPanel;
     }
 
+    /** Gold frame around the window = it is the selected item of the manager (OK = full screen, long OK = close). */
+    void setSelected(boolean selected) {
+        mPanel.setBackgroundColor(selected ? 0xFFFFC107 : Color.BLACK);
+        int pad = selected ? dp(3) : 0;
+        mPanel.setPadding(pad, pad, pad, pad);
+    }
+
     boolean hasChannel() {
         return mChannel != null;
     }

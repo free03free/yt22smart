@@ -77,6 +77,9 @@ public final class IptvPrefs {
 
     /** Small window in the channel manager that keeps playing while the user browses (default on). */
     public boolean isMiniPlayer() { return mPrefs.getBoolean("miniPlayer", true); }
+    /** With the small window playing: Left/Right select the window (true) instead of switching between groups (false). */
+    public boolean isMiniSelect() { return mPrefs.getBoolean("miniSelect", true); }
+    public void setMiniSelect(boolean on) { mPrefs.edit().putBoolean("miniSelect", on).apply(); }
     public void setMiniPlayer(boolean on) { mPrefs.edit().putBoolean("miniPlayer", on).apply(); }
 
     public int getPlayerMode() { return mPrefs.getInt("playerMode", PLAYER_INTERNAL); }
@@ -147,6 +150,8 @@ public final class IptvPrefs {
     public void setSatApp(String pkg, String label) {
         mPrefs.edit().putString("satApp", pkg == null ? "" : pkg).putString("satAppLabel", label == null ? "" : label).apply();
     }
+    public boolean isSatShowSystem() { return mPrefs.getBoolean("satShowSystem", false); }
+    public void setSatShowSystem(boolean show) { mPrefs.edit().putBoolean("satShowSystem", show).apply(); }
     public String getSatPackage() { return mPrefs.getString("satPackage", ""); }
     public void setSatPackage(String pkg) { mPrefs.edit().putString("satPackage", pkg == null ? "" : pkg.trim()).apply(); }
     public String getSatStream() { return mPrefs.getString("satStream", ""); }
