@@ -1108,6 +1108,8 @@
     <string name="iptv_player_error">Cannot play this channel. Press Up/Down to switch channel</string>
     <string name="iptv_quality_limit">Max video quality (built-in player)</string>
     <string name="iptv_quality_auto">Auto (no limit)</string>
+    <string name="iptv_player_muted">Sound: off</string>
+    <string name="iptv_player_unmuted">Sound: on</string>
     <string name="iptv_quality_button">Quality: %1$s</string>
     <string name="iptv_quality_set">Max quality: %1$s</string>
     <string name="iptv_quality_swap">Prefer a lower-quality copy of the channel</string>

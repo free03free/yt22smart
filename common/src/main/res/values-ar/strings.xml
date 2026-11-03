@@ -1100,6 +1100,8 @@
     <string name="iptv_player_error">تعذّر تشغيل هذه القناة. اضغط أعلى/أسفل لتغيير القناة</string>
     <string name="iptv_quality_limit">أقصى جودة للفيديو (المشغل الداخلي)</string>
     <string name="iptv_quality_auto">تلقائي (بدون حد)</string>
+    <string name="iptv_player_muted">الصوت: مكتوم</string>
+    <string name="iptv_player_unmuted">الصوت: يعمل</string>
     <string name="iptv_quality_button">الجودة: %1$s</string>
     <string name="iptv_quality_set">أقصى جودة: %1$s</string>
     <string name="iptv_quality_swap">تفضيل نسخة أقل جودة من القناة</string>

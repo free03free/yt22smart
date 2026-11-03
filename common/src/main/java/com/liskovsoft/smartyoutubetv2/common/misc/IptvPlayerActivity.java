@@ -18,6 +18,7 @@ import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.widget.BaseAdapter;
 import android.widget.FrameLayout;
+import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -117,6 +118,11 @@ public class IptvPlayerActivity extends Activity {
     private ListView mChannelList;
     private BaseAdapter mChannelAdapter;
     private boolean mSwallowCenterUp;
+    /** The current OK press already became a long press (controls shown), so its release must not open the list. */
+    private boolean mCenterLongHandled;
+    private TextView mMuteView;
+    private LinearLayout mTopBar;
+    private boolean mMuted;
     private DefaultTrackSelector mTrackSelector;
     private Dialog mQualityDialog;
     /** Variants of the current video (1 = the stream offers a single quality) and the height of the selected one. */
@@ -204,13 +210,28 @@ public class IptvPlayerActivity extends Activity {
         mQualityView.setBackgroundColor(0x99000000);
         mQualityView.setFocusable(true);
         mQualityView.setClickable(true);
-        mQualityView.setVisibility(View.GONE);
         mQualityView.setOnClickListener(v -> showQualityDialog());
         mQualityView.setOnFocusChangeListener((v, focused) -> v.setBackgroundColor(focused ? 0xCC1E88E5 : 0x99000000));
-        root.addView(mQualityView);
+
+        mMuteView = overlayText(Gravity.TOP | Gravity.END, 16);
+        mMuteView.setBackgroundColor(0x99000000);
+        mMuteView.setFocusable(true);
+        mMuteView.setClickable(true);
+        mMuteView.setOnClickListener(v -> toggleMute());
+        mMuteView.setOnFocusChangeListener((v, focused) -> v.setBackgroundColor(focused ? 0xCC1E88E5 : 0x99000000));
+
+        // the quality and mute buttons are shown together with the playback controls
+        mTopBar = new LinearLayout(this);
+        mTopBar.setOrientation(LinearLayout.HORIZONTAL);
+        LinearLayout.LayoutParams buttonLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        buttonLp.setMargins(dp(6), 0, dp(6), 0);
+        mTopBar.addView(mMuteView, buttonLp);
+        mTopBar.addView(mQualityView, buttonLp);
+        mTopBar.setVisibility(View.GONE);
+        root.addView(mTopBar, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.END));
         updateQualityLabel();
-        // the quality button is shown together with the playback controls
-        mPlayerView.setControllerVisibilityListener(visibility -> mQualityView.setVisibility(visibility == View.VISIBLE ? View.VISIBLE : View.GONE));
+        updateMuteLabel();
+        mPlayerView.setControllerVisibilityListener(visibility -> mTopBar.setVisibility(visibility == View.VISIBLE ? View.VISIBLE : View.GONE));
 
         buildChannelPanel(root);
 
@@ -301,6 +322,12 @@ public class IptvPlayerActivity extends Activity {
         mChannelList.post(() -> mChannelList.setSelectionFromTop(mIndex, dp(80)));
     }
 
+    /** Long OK: the normal controls (play / pause, seek) plus the mute and quality buttons. */
+    private void showControls() {
+        hideChannelPanel();
+        mPlayerView.showController();
+    }
+
     private void hideChannelPanel() {
         mChannelList.setVisibility(View.GONE);
     }
@@ -372,6 +399,7 @@ public class IptvPlayerActivity extends Activity {
                 handleError(error);
             }
         });
+        mPlayer.setVolume(mMuted ? 0f : 1f);
         mPlayerView.setPlayer(mPlayer);
         playChannel(mIndex);
     }
@@ -487,6 +515,18 @@ public class IptvPlayerActivity extends Activity {
 
     private void updateQualityLabel() {
         mQualityView.setText(getString(R.string.iptv_quality_button, qualityLabel(IptvPrefs.instance(this).getMaxQuality())));
+    }
+
+    private void toggleMute() {
+        mMuted = !mMuted;
+        if (mPlayer != null) {
+            mPlayer.setVolume(mMuted ? 0f : 1f);
+        }
+        updateMuteLabel();
+    }
+
+    private void updateMuteLabel() {
+        mMuteView.setText(getString(mMuted ? R.string.iptv_player_muted : R.string.iptv_player_unmuted));
     }
 
     private void showQualityDialog() {
@@ -818,17 +858,26 @@ public class IptvPlayerActivity extends Activity {
 
         int code = event.getKeyCode();
         boolean center = code == KeyEvent.KEYCODE_DPAD_CENTER || code == KeyEvent.KEYCODE_ENTER || code == KeyEvent.KEYCODE_NUMPAD_ENTER;
-        if (center && !isChannelPanelShown() && getCurrentFocus() != mQualityView) {
-            // OK over the picture: the list of channels slides in on the side
+        // OK over the picture (controls hidden, focus not on a control):
+        //   short press = the list of channels slides in on the side
+        //   long press  = the playback controls (play / pause, quality, mute ...)
+        if (center && !isChannelPanelShown() && !mPlayerView.isControllerVisible() && getCurrentFocus() != mQualityView && getCurrentFocus() != mMuteView) {
             if (event.getAction() == KeyEvent.ACTION_DOWN) {
                 if (event.getRepeatCount() == 0) {
                     mSwallowCenterUp = true;
-                    showChannelPanel();
+                    mCenterLongHandled = false;
+                } else if (!mCenterLongHandled && event.isLongPress()) {
+                    mCenterLongHandled = true;
+                    showControls();
                 }
                 return true;
             }
             if (mSwallowCenterUp) {
                 mSwallowCenterUp = false;
+                if (!mCenterLongHandled) {
+                    showChannelPanel();
+                }
+                mCenterLongHandled = false;
                 return true;
             }
         }

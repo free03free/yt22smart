@@ -142,3 +142,10 @@
 - التخطي: القناة تبقى في القائمة لكن المشغل يتجاوزها عند التنقل بأعلى/أسفل (مثل «skip» في الرسيفر).
 الملفات: misc/IptvManagerActivity.java (الشاشة، مسجّلة في AndroidManifest)، misc/IptvPin.java (الرمز السري)، تعديلات: IptvPlaylist (slotReorder / applyOrder / rename)، IptvStore، IptvUserData (قفل، تخطي، رمز، ترتيب المفضلة)، IptvPrefs (uiMode)، IptvSection، IptvSettingsPresenter، IptvPlayerActivity (zap + PIN)، strings (en + ar).
 الاختبار (بدون Android): common/src/test/.../iptv/IptvManagerOrderSelfCheck.java (12 فحصاً، جميعها ناجحة). الشاشة نفسها تعتمد على Android فلم تُجمَّع في JVM؛ جرّبها وأرسل لي أي خطأ بناء أو سلوك غريب.
+
+المشغل الداخلي: OK قصيرة وOK مطولة (جديد)
+=========================================
+- أثناء تشغيل قناة: ضغطة قصيرة على OK = قائمة القنوات الجانبية (كما كان).
+- ضغطة مطولة على OK = تظهر القناة بشكل عادي مع أزرار التحكم: تشغيل/إيقاف مؤقت، تقديم/ترجيع، وأعلى الشاشة زرّا «الصوت» (كتم/تشغيل) و«الجودة» (اختيار أقصى جودة).
+- حالة الكتم تبقى عند تغيير القناة. زر Menu ما زال يفتح قائمة الجودة مباشرة.
+الملف: common/.../misc/IptvPlayerActivity.java (+ نصان في strings.xml عربي/إنجليزي)
