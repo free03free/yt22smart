@@ -77,6 +77,7 @@ public final class IptvSection {
     private static final String K_SEARCH = MARK + "search";
     private static final String K_IMPORT = MARK + "import";
     private static final String K_MANAGE = MARK + "manage";
+    private static final String K_SAT = MARK + "sat";
     private static final String K_STATUS = MARK + "status";
     private static final String K_SORT = MARK + "sort";
     private static final String K_CHECK = MARK + "check";
@@ -153,6 +154,12 @@ public final class IptvSection {
         // always the first card: the numbered channel manager (works, empty, even before the first import)
         items.add(card("\uD83D\uDCCB " + context.getString(R.string.iptv_open_manager),
                 context.getString(R.string.iptv_open_manager_desc), K_MANAGE, null));
+
+        // the receiver / satellite shortcut (only when switched on in Settings > IPTV > Receiver / satellite)
+        if (IptvPrefs.instance(context).getSatMode() != 0) {
+            items.add(card("\uD83D\uDCE1 " + context.getString(R.string.iptv_sat_card),
+                    context.getString(R.string.iptv_sat_card_desc), K_SAT, null));
+        }
 
         addImportStatusCard(context, items);
 
@@ -595,6 +602,8 @@ public final class IptvSection {
             }
         } else if (key.equals(K_MANAGE)) {
             IptvManagerActivity.start(context, "all");
+        } else if (key.equals(K_SAT)) {
+            com.liskovsoft.smartyoutubetv2.common.misc.IptvSatellite.launch(context);
         } else if (key.startsWith(K_OPEN)) {
             String opened = key.substring(K_OPEN.length());
             String managerScope = IptvPrefs.instance(context).getUiMode() == IptvPrefs.UI_MANAGER ? managerScopeOf(opened) : null;

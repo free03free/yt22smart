@@ -33,6 +33,7 @@ import com.liskovsoft.smartyoutubetv2.common.iptv.IptvStore;
 import com.liskovsoft.smartyoutubetv2.common.iptv.IptvUrls;
 import com.liskovsoft.smartyoutubetv2.common.iptv.IptvUserData;
 import com.liskovsoft.smartyoutubetv2.common.iptv.IptvWebReceiver;
+import com.liskovsoft.smartyoutubetv2.common.misc.IptvSatellite;
 import com.liskovsoft.smartyoutubetv2.common.misc.MotherActivity;
 import com.liskovsoft.smartyoutubetv2.common.utils.AppDialogUtil;
 import com.liskovsoft.smartyoutubetv2.common.utils.SimpleEditDialog;
@@ -98,6 +99,11 @@ public class IptvSettingsPresenter extends BasePresenter<Void> {
                     AppDialogPresenter.instance(getContext()).closeDialog();
                     com.liskovsoft.smartyoutubetv2.common.misc.IptvManagerActivity.start(getContext(), "all");
                 }));
+        dialog.appendSingleButton(UiOptionItem.from(getContext().getString(R.string.iptv_sat_title),
+                getContext().getString(R.string.iptv_sat_title_desc), option -> {
+                    AppDialogPresenter.instance(getContext()).closeDialog();
+                    new android.os.Handler(android.os.Looper.getMainLooper()).post(this::showSatellite);
+                }));
         dialog.appendRadioCategory(getContext().getString(R.string.iptv_ui_mode), uiModeChoices());
         dialog.appendRadioCategory(getContext().getString(R.string.iptv_player_mode), playerChoices());
         dialog.appendRadioCategory(getContext().getString(R.string.iptv_quality_limit), qualityChoices());
@@ -127,6 +133,127 @@ public class IptvSettingsPresenter extends BasePresenter<Void> {
                     })));
         }
         dialog.showDialog(getContext().getString(R.string.iptv_title), IptvSettingsPresenter::unhold);
+    }
+
+    // ---- receiver / satellite shortcut
+
+    private void postLater(Runnable r) {
+        new android.os.Handler(android.os.Looper.getMainLooper()).post(r);
+    }
+
+    /** Settings > IPTV > Receiver / satellite: the ways to open the receiver's own channels, to try one by one. */
+    private void showSatellite() {
+        final Context ctx = getContext();
+        AppDialogPresenter d = AppDialogPresenter.instance(ctx);
+        int mode = mPrefs.getSatMode();
+        List<OptionItem> modes = new ArrayList<>();
+        modes.add(UiOptionItem.from(ctx.getString(R.string.iptv_sat_off),
+                o -> mPrefs.setSatMode(IptvSatellite.MODE_OFF), mode == IptvSatellite.MODE_OFF));
+        modes.add(UiOptionItem.from(ctx.getString(R.string.iptv_sat_home),
+                o -> mPrefs.setSatMode(IptvSatellite.MODE_HOME), mode == IptvSatellite.MODE_HOME));
+        modes.add(UiOptionItem.from(ctx.getString(R.string.iptv_sat_livetv),
+                o -> mPrefs.setSatMode(IptvSatellite.MODE_LIVE_TV), mode == IptvSatellite.MODE_LIVE_TV));
+        modes.add(UiOptionItem.from(ctx.getString(R.string.iptv_sat_input, satValue(mPrefs.getSatInputLabel())),
+                o -> mPrefs.setSatMode(IptvSatellite.MODE_TV_INPUT), mode == IptvSatellite.MODE_TV_INPUT));
+        modes.add(UiOptionItem.from(ctx.getString(R.string.iptv_sat_app, satValue(mPrefs.getSatAppLabel())),
+                o -> mPrefs.setSatMode(IptvSatellite.MODE_APP), mode == IptvSatellite.MODE_APP));
+        modes.add(UiOptionItem.from(ctx.getString(R.string.iptv_sat_package, satValue(mPrefs.getSatPackage())),
+                o -> mPrefs.setSatMode(IptvSatellite.MODE_PACKAGE), mode == IptvSatellite.MODE_PACKAGE));
+        modes.add(UiOptionItem.from(ctx.getString(R.string.iptv_sat_stream, satValue(mPrefs.getSatStream())),
+                o -> mPrefs.setSatMode(IptvSatellite.MODE_STREAM), mode == IptvSatellite.MODE_STREAM));
+        d.appendRadioCategory(ctx.getString(R.string.iptv_sat_mode), modes);
+
+        satButton(d, R.string.iptv_sat_choose_input, this::showSatInputPicker);
+        satButton(d, R.string.iptv_sat_choose_app, this::showSatAppPicker);
+        satButton(d, R.string.iptv_sat_enter_package, () -> SimpleEditDialog.show(ctx,
+                ctx.getString(R.string.iptv_sat_enter_package), ctx.getString(R.string.iptv_sat_hint_package),
+                mPrefs.getSatPackage(), value -> {
+                    mPrefs.setSatPackage(value);
+                    mPrefs.setSatMode(IptvSatellite.MODE_PACKAGE);
+                    postLater(this::showSatellite);
+                    return true;
+                }));
+        satButton(d, R.string.iptv_sat_enter_stream, () -> SimpleEditDialog.show(ctx,
+                ctx.getString(R.string.iptv_sat_enter_stream), ctx.getString(R.string.iptv_sat_hint_stream),
+                mPrefs.getSatStream(), value -> {
+                    mPrefs.setSatStream(value);
+                    mPrefs.setSatMode(IptvSatellite.MODE_STREAM);
+                    postLater(this::showSatellite);
+                    return true;
+                }));
+        d.appendSingleButton(UiOptionItem.from(ctx.getString(R.string.iptv_sat_test), option -> {
+            AppDialogPresenter.instance(ctx).closeDialog();
+            postLater(() -> {
+                if (mPrefs.getSatMode() == IptvSatellite.MODE_OFF) {
+                    MessageHelpers.showMessage(ctx, ctx.getString(R.string.iptv_sat_off));
+                } else {
+                    IptvSatellite.launch(ctx);
+                }
+            });
+        }));
+        satButton(d, R.string.iptv_sat_check, this::showSatReport);
+        d.showDialog(ctx.getString(R.string.iptv_sat_title));
+    }
+
+    private String satValue(String value) {
+        return value == null || value.trim().isEmpty() ? getContext().getString(R.string.iptv_sat_none_chosen) : value;
+    }
+
+    /** A button that closes the dialog, then opens another screen. */
+    private void satButton(AppDialogPresenter d, int titleRes, Runnable open) {
+        d.appendSingleButton(UiOptionItem.from(getContext().getString(titleRes), option -> {
+            AppDialogPresenter.instance(getContext()).closeDialog();
+            postLater(open);
+        }));
+    }
+
+    private void showSatInputPicker() {
+        final Context ctx = getContext();
+        List<IptvSatellite.InputEntry> inputs = IptvSatellite.tvInputs(ctx);
+        if (inputs.isEmpty()) {
+            MessageHelpers.showLongMessage(ctx, ctx.getString(R.string.iptv_sat_no_inputs));
+            postLater(this::showSatellite);
+            return;
+        }
+        AppDialogPresenter d = AppDialogPresenter.instance(ctx);
+        List<OptionItem> items = new ArrayList<>();
+        for (final IptvSatellite.InputEntry in : inputs) {
+            items.add(UiOptionItem.from(in.label + (in.passthrough ? "  [passthrough]" : ""), o -> {
+                mPrefs.setSatInput(in.id, in.label);
+                mPrefs.setSatMode(IptvSatellite.MODE_TV_INPUT);
+                AppDialogPresenter.instance(ctx).closeDialog();
+            }, in.id.equals(mPrefs.getSatInput())));
+        }
+        d.appendRadioCategory(ctx.getString(R.string.iptv_sat_choose_input), items);
+        d.showDialog(ctx.getString(R.string.iptv_sat_choose_input), () -> postLater(this::showSatellite));
+    }
+
+    private void showSatAppPicker() {
+        final Context ctx = getContext();
+        List<IptvSatellite.AppEntry> apps = IptvSatellite.installedApps(ctx);
+        if (apps.isEmpty()) {
+            MessageHelpers.showLongMessage(ctx, ctx.getString(R.string.iptv_sat_no_apps));
+            postLater(this::showSatellite);
+            return;
+        }
+        AppDialogPresenter d = AppDialogPresenter.instance(ctx);
+        List<OptionItem> items = new ArrayList<>();
+        for (final IptvSatellite.AppEntry app : apps) {
+            items.add(UiOptionItem.from((app.suggested ? "\u2605 " : "") + app.label, app.pkg, o -> {
+                mPrefs.setSatApp(app.pkg, app.label);
+                mPrefs.setSatMode(IptvSatellite.MODE_APP);
+                AppDialogPresenter.instance(ctx).closeDialog();
+            }, app.pkg.equals(mPrefs.getSatApp())));
+        }
+        d.appendRadioCategory(ctx.getString(R.string.iptv_sat_choose_app), items);
+        d.showDialog(ctx.getString(R.string.iptv_sat_choose_app), () -> postLater(this::showSatellite));
+    }
+
+    private void showSatReport() {
+        final Context ctx = getContext();
+        AppDialogPresenter d = AppDialogPresenter.instance(ctx);
+        d.appendLongTextCategory(ctx.getString(R.string.iptv_sat_check_title), UiOptionItem.from(IptvSatellite.report(ctx)));
+        d.showDialog(ctx.getString(R.string.iptv_sat_check_title), () -> postLater(this::showSatellite));
     }
 
     private List<OptionItem> uiModeChoices() {

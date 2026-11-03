@@ -133,6 +133,25 @@ public final class IptvPrefs {
     public void setBool(String key, boolean value) { mPrefs.edit().putBoolean(key, value).apply(); }
     public int getIntValue(String key, int def) { return mPrefs.getInt(key, def); }
 
+    // ---- receiver / satellite shortcut (see misc/IptvSatellite)
+    /** What the "satellite" shortcut opens: 0 = off (card hidden), 1 = home, 2 = live tv, 3 = tv input, 4 = app, 5 = package, 6 = stream. */
+    public int getSatMode() { return mPrefs.getInt("satMode", 0); }
+    public void setSatMode(int mode) { mPrefs.edit().putInt("satMode", mode).apply(); }
+    public String getSatInput() { return mPrefs.getString("satInput", ""); }
+    public String getSatInputLabel() { return mPrefs.getString("satInputLabel", ""); }
+    public void setSatInput(String id, String label) {
+        mPrefs.edit().putString("satInput", id == null ? "" : id).putString("satInputLabel", label == null ? "" : label).apply();
+    }
+    public String getSatApp() { return mPrefs.getString("satApp", ""); }
+    public String getSatAppLabel() { return mPrefs.getString("satAppLabel", ""); }
+    public void setSatApp(String pkg, String label) {
+        mPrefs.edit().putString("satApp", pkg == null ? "" : pkg).putString("satAppLabel", label == null ? "" : label).apply();
+    }
+    public String getSatPackage() { return mPrefs.getString("satPackage", ""); }
+    public void setSatPackage(String pkg) { mPrefs.edit().putString("satPackage", pkg == null ? "" : pkg.trim()).apply(); }
+    public String getSatStream() { return mPrefs.getString("satStream", ""); }
+    public void setSatStream(String url) { mPrefs.edit().putString("satStream", url == null ? "" : url.trim()).apply(); }
+
     /** Hide the channels the last check found not working. */
     public boolean isHideDead() { return mPrefs.getBoolean("hideDead", false); }
     public void setHideDead(boolean on) { mPrefs.edit().putBoolean("hideDead", on).apply(); }
