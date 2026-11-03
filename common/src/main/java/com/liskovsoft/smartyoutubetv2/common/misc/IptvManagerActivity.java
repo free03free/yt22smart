@@ -1056,22 +1056,57 @@ public class IptvManagerActivity extends Activity {
                 .setTitle(channel == null ? getString(R.string.iptv_mgr_title) : displayName(channel))
                 .setItems(labels.toArray(new String[0]), (dialog, which) -> actions.get(which).run())
                 .create();
-        // The menu opens while OK is still held (long press): its repeats and its key-up must not reach the list,
-        // otherwise the first item is triggered or the list loses the focus and the remote seems dead.
+        // The remote is handled here, not by the list's own focus (which is often lost in a dialog opened by a long press):
+        // up / down move the selected row, OK runs it. The OK press that opened the menu (still held) is ignored.
         final boolean[] held = {true};
+        final boolean[] pressed = {false};
+        final int[] sel = {0};
+        final boolean[] moved = {false};
         menu.setOnKeyListener((d, code, ev) -> {
-            boolean center = code == KeyEvent.KEYCODE_DPAD_CENTER || code == KeyEvent.KEYCODE_ENTER || code == KeyEvent.KEYCODE_NUMPAD_ENTER;
-            if (!center || !held[0]) {
-                return false;
+            android.widget.ListView list = menu.getListView();
+            int count = labels.size();
+            boolean down = ev.getAction() == KeyEvent.ACTION_DOWN;
+            switch (code) {
+                case KeyEvent.KEYCODE_DPAD_UP:
+                case KeyEvent.KEYCODE_DPAD_DOWN:
+                case KeyEvent.KEYCODE_CHANNEL_UP:
+                case KeyEvent.KEYCODE_CHANNEL_DOWN:
+                case KeyEvent.KEYCODE_PAGE_UP:
+                case KeyEvent.KEYCODE_PAGE_DOWN:
+                    if (down && list != null && count > 0) {
+                        int step = (code == KeyEvent.KEYCODE_DPAD_UP || code == KeyEvent.KEYCODE_CHANNEL_DOWN || code == KeyEvent.KEYCODE_PAGE_UP) ? -1 : 1;
+                        sel[0] = (sel[0] + step + count) % count;
+                        moved[0] = true;
+                        list.setSelection(sel[0]);
+                        list.smoothScrollToPosition(sel[0]);
+                    }
+                    return true;
+                case KeyEvent.KEYCODE_DPAD_LEFT:
+                case KeyEvent.KEYCODE_DPAD_RIGHT:
+                    return true;
+                case KeyEvent.KEYCODE_DPAD_CENTER:
+                case KeyEvent.KEYCODE_ENTER:
+                case KeyEvent.KEYCODE_NUMPAD_ENTER:
+                    if (down) {
+                        if (ev.getRepeatCount() == 0) {
+                            held[0] = false; // a fresh press: the long press was released long ago
+                            pressed[0] = true;
+                        }
+                        return true;
+                    }
+                    if (held[0]) { // key-up of the long press that opened the menu
+                        held[0] = false;
+                        return true;
+                    }
+                    if (pressed[0]) {
+                        pressed[0] = false;
+                        menu.dismiss();
+                        actions.get(Math.max(0, Math.min(sel[0], count - 1))).run();
+                    }
+                    return true;
+                default:
+                    return false;
             }
-            if (ev.getAction() == KeyEvent.ACTION_DOWN && ev.getRepeatCount() == 0) {
-                held[0] = false; // a fresh press: the long press was released long ago
-                return false;
-            }
-            if (ev.getAction() == KeyEvent.ACTION_UP) {
-                held[0] = false;
-            }
-            return true;
         });
         menu.setOnShowListener(d -> {
             android.widget.ListView list = menu.getListView();
@@ -1081,7 +1116,10 @@ public class IptvManagerActivity extends Activity {
                 list.setDrawSelectorOnTop(false);
                 final Runnable selectFirst = () -> {
                     list.requestFocusFromTouch(); // leaves touch mode, otherwise no row is shown as selected
-                    list.setSelection(0);
+                    if (!moved[0]) {
+                        list.setSelection(0);
+                        sel[0] = 0;
+                    }
                 };
                 selectFirst.run();
                 list.post(selectFirst); // the first option is selected: the remote moves from there
