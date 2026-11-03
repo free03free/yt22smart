@@ -20,6 +20,7 @@ import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.widget.BaseAdapter;
 import android.widget.EditText;
+import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.TextView;
@@ -270,7 +271,9 @@ public class IptvManagerActivity extends Activity {
         root.addView(mInfoView, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(28)));
 
         root.addView(buttonBar(), new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(40)));
-        setContentView(root);
+        mFrame = new FrameLayout(this);
+        mFrame.addView(root, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        setContentView(mFrame);
     }
 
     private View headerRow() {
@@ -1052,109 +1055,177 @@ public class IptvManagerActivity extends Activity {
         }
         add(labels, actions, getString(R.string.iptv_mgr_pin_change), () -> IptvPin.change(this));
 
-        final AlertDialog menu = new AlertDialog.Builder(this)
-                .setTitle(channel == null ? getString(R.string.iptv_mgr_title) : displayName(channel))
-                .setItems(labels.toArray(new String[0]), (dialog, which) -> actions.get(which).run())
-                .create();
-        // The remote is handled here, not by the list's own focus (which is often lost in a dialog opened by a long press):
-        // up / down move the selected row, OK runs it. The OK press that opened the menu (still held) is ignored.
-        final boolean[] held = {true};
-        final boolean[] pressed = {false};
-        final int[] sel = {0};
-        final boolean[] moved = {false};
-        menu.setOnKeyListener((d, code, ev) -> {
-            android.widget.ListView list = menu.getListView();
-            int count = labels.size();
-            boolean down = ev.getAction() == KeyEvent.ACTION_DOWN;
-            switch (code) {
-                case KeyEvent.KEYCODE_DPAD_UP:
-                case KeyEvent.KEYCODE_DPAD_DOWN:
-                case KeyEvent.KEYCODE_CHANNEL_UP:
-                case KeyEvent.KEYCODE_CHANNEL_DOWN:
-                case KeyEvent.KEYCODE_PAGE_UP:
-                case KeyEvent.KEYCODE_PAGE_DOWN:
-                    if (down && list != null && count > 0) {
-                        int step = (code == KeyEvent.KEYCODE_DPAD_UP || code == KeyEvent.KEYCODE_CHANNEL_DOWN || code == KeyEvent.KEYCODE_PAGE_UP) ? -1 : 1;
-                        sel[0] = (sel[0] + step + count) % count;
-                        moved[0] = true;
-                        list.setSelection(sel[0]);
-                        list.smoothScrollToPosition(sel[0]);
-                    }
-                    return true;
-                case KeyEvent.KEYCODE_DPAD_LEFT:
-                case KeyEvent.KEYCODE_DPAD_RIGHT:
-                    return true;
-                case KeyEvent.KEYCODE_DPAD_CENTER:
-                case KeyEvent.KEYCODE_ENTER:
-                case KeyEvent.KEYCODE_NUMPAD_ENTER:
-                    if (down) {
-                        if (ev.getRepeatCount() == 0) {
-                            held[0] = false; // a fresh press: the long press was released long ago
-                            pressed[0] = true;
-                        }
-                        return true;
-                    }
-                    if (held[0]) { // key-up of the long press that opened the menu
-                        held[0] = false;
-                        return true;
-                    }
-                    if (pressed[0]) {
-                        pressed[0] = false;
-                        menu.dismiss();
-                        actions.get(Math.max(0, Math.min(sel[0], count - 1))).run();
-                    }
-                    return true;
-                default:
-                    return false;
-            }
-        });
-        menu.setOnShowListener(d -> {
-            android.widget.ListView list = menu.getListView();
-            if (list != null) {
-                list.setItemsCanFocus(false);
-                list.setSelector(new ColorDrawable(0x881E88E5)); // a clearly visible selected row
-                list.setDrawSelectorOnTop(false);
-                final Runnable selectFirst = () -> {
-                    list.requestFocusFromTouch(); // leaves touch mode, otherwise no row is shown as selected
-                    if (!moved[0]) {
-                        list.setSelection(0);
-                        sel[0] = 0;
-                    }
-                };
-                selectFirst.run();
-                list.post(selectFirst); // the first option is selected: the remote moves from there
-                list.postDelayed(selectFirst, 150);
-            }
-        });
-        menu.setOnDismissListener(d -> {
-            if (mMenu == menu) {
-                mMenu = null;
-            }
-        });
-        mMenu = menu;
-        // Shown a moment later, outside the long-press key dispatch: otherwise the window often does not get the input
-        // focus and the remote seems dead until the app is left and entered again.
-        mHandler.postDelayed(() -> {
-            if (mMenu == menu && !isFinishing()) {
-                menu.show();
-            }
-        }, 120);
+        openMenuOverlay(channel == null ? getString(R.string.iptv_mgr_title) : displayName(channel), labels, actions);
     }
 
-    /** The options menu that is open (or about to open); keys that still reach the activity are handed to it. */
-    private AlertDialog mMenu;
+    // The options menu is a layer inside this activity (not a dialog window): a dialog opened by a long press often
+    // never got the input focus, so the remote did nothing until the app was left and entered again. Here every key
+    // goes through the activity itself, so it always answers.
+    private FrameLayout mFrame;
+    private View mMenuOverlay;
+    private ListView mMenuList;
+    private BaseAdapter mMenuAdapter;
+    private List<String> mMenuLabels;
+    private List<Runnable> mMenuActions;
+    private int mMenuSel;
+    private boolean mMenuHeld;
+    private boolean mMenuPressed;
+
+    private void openMenuOverlay(String title, List<String> labels, List<Runnable> actions) {
+        closeMenuOverlay();
+        mMenuLabels = labels;
+        mMenuActions = actions;
+        mMenuSel = 0;
+        mMenuHeld = true; // OK is still held when the menu comes from a long press: its repeats / key-up are ignored
+        mMenuPressed = false;
+
+        FrameLayout scrim = new FrameLayout(this);
+        scrim.setBackgroundColor(0xAA000000);
+        scrim.setClickable(true);
+        scrim.setOnClickListener(v -> closeMenuOverlay());
+
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(0xFF1B2733);
+        bg.setStroke(dp(2), C_GOLD);
+        bg.setCornerRadius(dp(10));
+        panel.setBackground(bg);
+        panel.setClickable(true); // a tap inside the panel does not close it
+
+        TextView head = text(title, 20, C_GOLD, Gravity.CENTER);
+        head.setTypeface(Typeface.DEFAULT_BOLD);
+        head.setSingleLine(true);
+        head.setPadding(dp(12), dp(10), dp(12), dp(10));
+        panel.addView(head, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        mMenuList = new ListView(this);
+        mMenuList.setDivider(null);
+        mMenuList.setFocusable(false);
+        mMenuAdapter = new BaseAdapter() {
+            @Override
+            public int getCount() {
+                return mMenuLabels.size();
+            }
+
+            @Override
+            public Object getItem(int position) {
+                return mMenuLabels.get(position);
+            }
+
+            @Override
+            public long getItemId(int position) {
+                return position;
+            }
+
+            @Override
+            public View getView(int position, View convertView, ViewGroup parent) {
+                TextView row = convertView instanceof TextView ? (TextView) convertView : new TextView(IptvManagerActivity.this);
+                row.setText(mMenuLabels.get(position));
+                row.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 18);
+                row.setTextColor(Color.WHITE);
+                row.setGravity(Gravity.CENTER_VERTICAL | Gravity.START);
+                row.setPadding(dp(18), dp(12), dp(18), dp(12));
+                row.setBackgroundColor(position == mMenuSel ? 0xFF1E88E5 : Color.TRANSPARENT);
+                return row;
+            }
+        };
+        mMenuList.setAdapter(mMenuAdapter);
+        mMenuList.setOnItemClickListener((parent, view, position, id) -> runMenuItem(position));
+
+        int screenW = getResources().getDisplayMetrics().widthPixels;
+        int screenH = getResources().getDisplayMetrics().heightPixels;
+        int listH = Math.min(labels.size() * dp(50), Math.round(screenH * 0.62f));
+        panel.addView(mMenuList, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, listH));
+
+        int width = Math.max(dp(260), Math.min(dp(480), Math.round(screenW * 0.62f)));
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(width, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER);
+        scrim.addView(panel, lp);
+        mMenuOverlay = scrim;
+        mFrame.addView(scrim, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+    }
+
+    private void closeMenuOverlay() {
+        if (mMenuOverlay != null) {
+            mFrame.removeView(mMenuOverlay);
+            mMenuOverlay = null;
+            mMenuList = null;
+            mMenuAdapter = null;
+        }
+    }
+
+    private void runMenuItem(int position) {
+        List<Runnable> actions = mMenuActions;
+        closeMenuOverlay();
+        if (actions != null && position >= 0 && position < actions.size()) {
+            actions.get(position).run();
+        }
+    }
+
+    private void moveMenuSelection(int step) {
+        int count = mMenuLabels.size();
+        if (count == 0) {
+            return;
+        }
+        mMenuSel = (mMenuSel + step + count) % count;
+        mMenuAdapter.notifyDataSetChanged();
+        mMenuList.smoothScrollToPosition(mMenuSel);
+    }
+
+    private boolean handleMenuKey(KeyEvent ev) {
+        int code = ev.getKeyCode();
+        boolean down = ev.getAction() == KeyEvent.ACTION_DOWN;
+        switch (code) {
+            case KeyEvent.KEYCODE_DPAD_UP:
+            case KeyEvent.KEYCODE_CHANNEL_DOWN:
+            case KeyEvent.KEYCODE_PAGE_UP:
+                if (down) {
+                    moveMenuSelection(-1);
+                }
+                return true;
+            case KeyEvent.KEYCODE_DPAD_DOWN:
+            case KeyEvent.KEYCODE_CHANNEL_UP:
+            case KeyEvent.KEYCODE_PAGE_DOWN:
+                if (down) {
+                    moveMenuSelection(1);
+                }
+                return true;
+            case KeyEvent.KEYCODE_DPAD_CENTER:
+            case KeyEvent.KEYCODE_ENTER:
+            case KeyEvent.KEYCODE_NUMPAD_ENTER:
+                if (down) {
+                    if (ev.getRepeatCount() == 0) {
+                        mMenuHeld = false; // a fresh press: the long press was released long ago
+                        mMenuPressed = true;
+                    }
+                    return true;
+                }
+                if (mMenuHeld) { // key-up of the long press that opened the menu
+                    mMenuHeld = false;
+                    return true;
+                }
+                if (mMenuPressed) {
+                    mMenuPressed = false;
+                    mCenterLong = false;
+                    runMenuItem(mMenuSel);
+                }
+                return true;
+            case KeyEvent.KEYCODE_BACK:
+            case KeyEvent.KEYCODE_ESCAPE:
+            case KeyEvent.KEYCODE_MENU:
+                if (!down) {
+                    closeMenuOverlay();
+                }
+                return true;
+            default:
+                return true; // nothing moves behind the menu
+        }
+    }
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
-        AlertDialog menu = mMenu;
-        if (menu != null) {
-            if (menu.isShowing()) {
-                if (menu.dispatchKeyEvent(event)) {
-                    return true;
-                }
-            } else {
-                return true; // not shown yet: do not move the list behind it
-            }
+        if (mMenuOverlay != null) {
+            return handleMenuKey(event);
         }
         return super.dispatchKeyEvent(event);
     }
