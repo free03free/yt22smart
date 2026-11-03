@@ -1386,4 +1386,27 @@
     <string name="iptv_ui_mode">واجهة القنوات</string>
     <string name="iptv_ui_mode_cards">بطاقات (الشكل القديم)</string>
     <string name="iptv_ui_mode_manager">قائمة مرقمة (مدير القنوات)</string>
+    <string name="iptv_mgr_to_bundle">نسخ إلى باقة...</string>
+    <string name="iptv_mgr_move_to_bundle">نقل إلى باقة...</string>
+    <string name="iptv_mgr_bundle_pick">اختر الباقة</string>
+    <string name="iptv_mgr_bundle_new">+ باقة جديدة...</string>
+    <string name="iptv_mgr_bundle_name">اسم الباقة</string>
+    <string name="iptv_mgr_bundles">إدارة الباقات...</string>
+    <string name="iptv_mgr_bundle_open">فتح</string>
+    <string name="iptv_mgr_bundle_rename">إعادة تسمية</string>
+    <string name="iptv_mgr_bundle_up">تقديم</string>
+    <string name="iptv_mgr_bundle_down">تأخير</string>
+    <string name="iptv_mgr_bundle_delete">حذف الباقة</string>
+    <string name="iptv_mgr_bundle_delete_confirm">حذف الباقة %1$s؟ القنوات تبقى في المكتبة.</string>
+    <string name="iptv_mgr_bundle_done">تم: %1$d قناة</string>
+    <string name="iptv_mgr_fixed_number">تثبيت رقم...</string>
+    <string name="iptv_mgr_fixed_title">الرقم الثابت لهذه القناة</string>
+    <string name="iptv_mgr_fixed_clear">إلغاء الرقم الثابت</string>
+    <string name="iptv_mgr_fixed_taken">كان الرقم لقناة أخرى وانتقل إلى هذه</string>
+    <string name="iptv_mgr_fixed_set">الرقم الثابت: %1$d</string>
+    <string name="iptv_mini_play_full">تشغيل بملء الشاشة</string>
+    <string name="iptv_mini_expand">تكبير النافذة المصغرة</string>
+    <string name="iptv_mini_close">إغلاق النافذة المصغرة</string>
+    <string name="iptv_mini_turn_off">النافذة المصغرة: إيقاف (OK يشغّل بملء الشاشة)</string>
+    <string name="iptv_mini_turn_on">النافذة المصغرة: تفعيل (OK يشغّل في نافذة صغيرة)</string>
 </resources>

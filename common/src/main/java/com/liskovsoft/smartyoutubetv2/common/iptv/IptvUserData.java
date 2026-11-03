@@ -159,6 +159,218 @@ public final class IptvUserData {
         mPrefs.edit().putString(KEY_PIN, pin == null ? "" : pin.trim()).apply();
     }
 
+    // ------------------------------------------------------------------ bundles (extra favorite lists)
+
+    private static final String KEY_BUNDLES = "bundles";       // lines: id <TAB> name, in the order shown
+    private static final String KEY_BUNDLE_SEQ = "bundle_seq";
+    private static final String KEY_NUMBERS = "numbers";       // lines: number <TAB> url
+
+    /** An extra favorites list ("Favorites 2", "Kids" ...). The classic favorites list stays as it was. */
+    public static final class Bundle {
+        public final String id;
+        public final String name;
+
+        Bundle(String id, String name) {
+            this.id = id;
+            this.name = name;
+        }
+    }
+
+    private static String bundleKey(String id) {
+        return "bundle_" + id;
+    }
+
+    private static String cleanName(String name) {
+        return name == null ? "" : name.replace('\t', ' ').replace('\n', ' ').trim();
+    }
+
+    public synchronized List<Bundle> bundles() {
+        List<Bundle> result = new ArrayList<>();
+        for (String line : read(KEY_BUNDLES)) {
+            int tab = line.indexOf('\t');
+            if (tab > 0) {
+                result.add(new Bundle(line.substring(0, tab), line.substring(tab + 1)));
+            }
+        }
+        return result;
+    }
+
+    public synchronized String bundleName(String id) {
+        for (Bundle b : bundles()) {
+            if (b.id.equals(id)) {
+                return b.name;
+            }
+        }
+        return null;
+    }
+
+    private void writeBundles(List<Bundle> list) {
+        List<String> lines = new ArrayList<>();
+        for (Bundle b : list) {
+            lines.add(b.id + "\t" + b.name);
+        }
+        write(KEY_BUNDLES, lines);
+    }
+
+    /** @return the id of the new bundle, or null when the name is blank */
+    public synchronized String createBundle(String name) {
+        String clean = cleanName(name);
+        if (clean.isEmpty()) {
+            return null;
+        }
+        int seq = mPrefs.getInt(KEY_BUNDLE_SEQ, 1) + 1; // "1" is the classic favorites list
+        mPrefs.edit().putInt(KEY_BUNDLE_SEQ, seq).apply();
+        List<Bundle> list = bundles();
+        String id = String.valueOf(seq);
+        list.add(new Bundle(id, clean));
+        writeBundles(list);
+        return id;
+    }
+
+    public synchronized boolean renameBundle(String id, String name) {
+        String clean = cleanName(name);
+        if (clean.isEmpty()) {
+            return false;
+        }
+        List<Bundle> list = bundles();
+        boolean found = false;
+        for (int i = 0; i < list.size(); i++) {
+            if (list.get(i).id.equals(id)) {
+                list.set(i, new Bundle(id, clean));
+                found = true;
+            }
+        }
+        if (found) {
+            writeBundles(list);
+        }
+        return found;
+    }
+
+    public synchronized void deleteBundle(String id) {
+        List<Bundle> list = bundles();
+        for (int i = list.size() - 1; i >= 0; i--) {
+            if (list.get(i).id.equals(id)) {
+                list.remove(i);
+            }
+        }
+        writeBundles(list);
+        mPrefs.edit().remove(bundleKey(id)).apply();
+    }
+
+    /** Moves a bundle one place earlier (-1) or later (+1) among the tabs. @return true if it moved */
+    public synchronized boolean moveBundle(String id, int delta) {
+        List<Bundle> list = bundles();
+        int from = -1;
+        for (int i = 0; i < list.size(); i++) {
+            if (list.get(i).id.equals(id)) {
+                from = i;
+            }
+        }
+        int to = from + delta;
+        if (from < 0 || to < 0 || to >= list.size()) {
+            return false;
+        }
+        java.util.Collections.swap(list, from, to);
+        writeBundles(list);
+        return true;
+    }
+
+    public synchronized List<String> bundleItems(String id) {
+        return read(bundleKey(id));
+    }
+
+    public synchronized boolean inBundle(String id, String url) {
+        return url != null && read(bundleKey(id)).contains(url.trim());
+    }
+
+    public synchronized void addToBundle(String id, java.util.Collection<String> urls) {
+        setMany(bundleKey(id), urls, true);
+    }
+
+    public synchronized int removeFromBundle(String id, java.util.Collection<String> urls) {
+        return removeMany(bundleKey(id), urls);
+    }
+
+    /** Re-orders the bundle to match {@code newOrder} (others keep their slots). @return true if the order changed */
+    public synchronized boolean reorderBundle(String id, List<String> newOrder) {
+        List<String> all = read(bundleKey(id));
+        List<String> order = IptvPlaylist.slotReorder(all, newOrder);
+        if (order.equals(all)) {
+            return false;
+        }
+        write(bundleKey(id), order);
+        return true;
+    }
+
+    /** Removes the channels from every bundle (used when they are deleted from the library). */
+    public synchronized void removeFromAllBundles(java.util.Collection<String> urls) {
+        for (Bundle b : bundles()) {
+            removeMany(bundleKey(b.id), urls);
+        }
+    }
+
+    // ------------------------------------------------------------------ fixed channel numbers
+
+    /** @return url -> fixed number chosen by the user */
+    public synchronized java.util.Map<String, Integer> fixedNumbers() {
+        java.util.Map<String, Integer> result = new java.util.HashMap<>();
+        for (String line : read(KEY_NUMBERS)) {
+            int tab = line.indexOf('\t');
+            if (tab > 0) {
+                try {
+                    result.put(line.substring(tab + 1), Integer.parseInt(line.substring(0, tab)));
+                } catch (NumberFormatException ignored) {
+                    // damaged line: skipped
+                }
+            }
+        }
+        return result;
+    }
+
+    private void writeNumbers(java.util.Map<String, Integer> map) {
+        List<String> lines = new ArrayList<>();
+        for (java.util.Map.Entry<String, Integer> e : map.entrySet()) {
+            lines.add(e.getValue() + "\t" + e.getKey());
+        }
+        write(KEY_NUMBERS, lines);
+    }
+
+    /**
+     * Gives the channel a fixed number. If another channel had that fixed number it loses it
+     * (it goes back to automatic numbering).
+     * @return the url of the channel that lost the number, or null
+     */
+    public synchronized String setFixedNumber(String url, int number) {
+        if (url == null || number < 1) {
+            return null;
+        }
+        java.util.Map<String, Integer> map = fixedNumbers();
+        String key = url.trim();
+        String loser = null;
+        for (java.util.Map.Entry<String, Integer> e : new ArrayList<>(map.entrySet())) {
+            if (e.getValue() == number && !e.getKey().equals(key)) {
+                loser = e.getKey();
+                map.remove(loser);
+            }
+        }
+        map.put(key, number);
+        writeNumbers(map);
+        return loser;
+    }
+
+    public synchronized void clearFixedNumber(java.util.Collection<String> urls) {
+        java.util.Map<String, Integer> map = fixedNumbers();
+        boolean changed = false;
+        for (String url : urls) {
+            if (url != null && map.remove(url.trim()) != null) {
+                changed = true;
+            }
+        }
+        if (changed) {
+            writeNumbers(map);
+        }
+    }
+
     private void setMany(String key, java.util.Collection<String> urls, boolean on) {
         if (urls == null || urls.isEmpty()) {
             return;

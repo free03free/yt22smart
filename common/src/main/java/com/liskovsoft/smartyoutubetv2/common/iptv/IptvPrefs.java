@@ -75,6 +75,10 @@ public final class IptvPrefs {
     public int getUiMode() { return mPrefs.getInt("uiMode", UI_CARDS); }
     public void setUiMode(int mode) { mPrefs.edit().putInt("uiMode", mode).apply(); }
 
+    /** Small window in the channel manager that keeps playing while the user browses (default on). */
+    public boolean isMiniPlayer() { return mPrefs.getBoolean("miniPlayer", true); }
+    public void setMiniPlayer(boolean on) { mPrefs.edit().putBoolean("miniPlayer", on).apply(); }
+
     public int getPlayerMode() { return mPrefs.getInt("playerMode", PLAYER_INTERNAL); }
     public void setPlayerMode(int mode) { mPrefs.edit().putInt("playerMode", mode).apply(); }
 

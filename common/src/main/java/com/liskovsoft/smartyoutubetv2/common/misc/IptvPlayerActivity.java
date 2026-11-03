@@ -85,6 +85,12 @@ public class IptvPlayerActivity extends Activity {
     /** The list the user was browsing (kept in memory; an Intent can't carry thousands of channels). */
     private static List<IptvChannel> sQueue = Collections.emptyList();
     private static int sIndex;
+    /** Key of the channel that played last, so the manager's small window can carry on with it after full screen. */
+    private static String sLastKey;
+
+    static String lastPlayedKey() {
+        return sLastKey;
+    }
 
     private final Handler mHandler = new Handler(Looper.getMainLooper());
     private final Runnable mHideTitle = this::hideTitle;
@@ -449,6 +455,7 @@ public class IptvPlayerActivity extends Activity {
             return;
         }
         IptvUserData.instance(this).addRecent(channel.url);
+        sLastKey = channel.key();
 
         showTitle(channel);
         showStatus(getString(R.string.iptv_player_loading));

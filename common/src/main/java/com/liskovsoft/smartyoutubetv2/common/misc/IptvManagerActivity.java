@@ -30,6 +30,7 @@ import com.liskovsoft.smartyoutubetv2.common.app.presenters.service.IptvSection;
 import com.liskovsoft.smartyoutubetv2.common.iptv.IptvChannel;
 import com.liskovsoft.smartyoutubetv2.common.iptv.IptvHealth;
 import com.liskovsoft.smartyoutubetv2.common.iptv.IptvNames;
+import com.liskovsoft.smartyoutubetv2.common.iptv.IptvNumbering;
 import com.liskovsoft.smartyoutubetv2.common.iptv.IptvPlaylist;
 import com.liskovsoft.smartyoutubetv2.common.iptv.IptvPrefs;
 import com.liskovsoft.smartyoutubetv2.common.iptv.IptvStore;
@@ -70,6 +71,7 @@ public class IptvManagerActivity extends Activity {
     private static final String S_ALL = "all";
     private static final String S_FAV = "fav";
     private static final String S_GROUP = "g:";
+    private static final String S_BUNDLE = "b:";
 
     private static final int ROW_DP = 46;
     private static final int PAGE_JUMP = 10;
@@ -107,6 +109,9 @@ public class IptvManagerActivity extends Activity {
     private Set<String> mFavSet = new HashSet<>();
     private Set<String> mLockedSet = new HashSet<>();
     private Set<String> mSkippedSet = new HashSet<>();
+    /** url -> channel number shown in the first column (fixed numbers + automatic ones), library-wide. */
+    private Map<String, Integer> mNumbers = new HashMap<>();
+    private Set<String> mFixedSet = new HashSet<>();
     private int mCursor;
     private boolean mMoving;
     private List<IptvChannel> mMoveBackup;
@@ -119,6 +124,9 @@ public class IptvManagerActivity extends Activity {
     private TextView mScopeView;
     private TextView mInfoView;
     private ListView mList;
+    /** Small window that keeps playing while the user browses; tap / OK on the playing channel = full screen. */
+    private IptvMiniPlayer mMini;
+    private boolean mResumeMini;
     private RowsAdapter mAdapter;
 
     // ------------------------------------------------------------------ lifecycle
@@ -138,7 +146,33 @@ public class IptvManagerActivity extends Activity {
     }
 
     @Override
+    protected void onStart() {
+        super.onStart();
+        if (mResumeMini) { // back from full screen: the window carries on with the channel that was watched last
+            mResumeMini = false;
+            String key = IptvPlayerActivity.lastPlayedKey();
+            if (key != null) {
+                for (IptvChannel c : mStore.load().getChannels()) {
+                    if (c.key().equals(key)) {
+                        mMini.play(c);
+                        break;
+                    }
+                }
+            }
+        }
+        mMini.start();
+        refresh();
+    }
+
+    @Override
+    protected void onStop() {
+        mMini.stop();
+        super.onStop();
+    }
+
+    @Override
     protected void onDestroy() {
+        mMini.close();
         mHandler.removeCallbacksAndMessages(null);
         if (mDirty) {
             // let the section cards pick up the new order / deletions
@@ -217,7 +251,18 @@ public class IptvManagerActivity extends Activity {
         mList.setVerticalScrollBarEnabled(true);
         mAdapter = new RowsAdapter();
         mList.setAdapter(mAdapter);
-        root.addView(mList, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+        mMini = new IptvMiniPlayer(this, this::expandMini);
+        int screenW = getResources().getDisplayMetrics().widthPixels;
+        int miniW = Math.max(dp(220), Math.min(dp(440), Math.round(screenW * 0.36f)));
+        int miniH = Math.round(miniW * 9f / 16f) + dp(28); // picture 16:9 + the name bar
+        LinearLayout body = new LinearLayout(this);
+        body.setOrientation(LinearLayout.HORIZONTAL);
+        body.addView(mList, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f));
+        LinearLayout.LayoutParams miniLp = new LinearLayout.LayoutParams(miniW, miniH);
+        miniLp.gravity = Gravity.TOP;
+        miniLp.setMargins(dp(10), dp(6), 0, 0);
+        body.addView(mMini.view(), miniLp);
+        root.addView(body, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
 
         mInfoView = text("", 16, C_GOLD, Gravity.CENTER);
         root.addView(mInfoView, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(28)));
@@ -273,6 +318,9 @@ public class IptvManagerActivity extends Activity {
         mScopes.clear();
         mScopes.add(S_ALL);
         mScopes.add(S_FAV);
+        for (IptvUserData.Bundle b : mUser.bundles()) {
+            mScopes.add(S_BUNDLE + b.id);
+        }
         for (String group : mStore.load().groups().keySet()) {
             mScopes.add(S_GROUP + group);
         }
@@ -286,6 +334,10 @@ public class IptvManagerActivity extends Activity {
         if (scope.equals(S_FAV)) {
             return getString(R.string.iptv_favorites);
         }
+        if (scope.startsWith(S_BUNDLE)) {
+            String name = mUser.bundleName(scope.substring(S_BUNDLE.length()));
+            return "\u2605 " + (name == null ? "?" : name);
+        }
         String group = scope.substring(S_GROUP.length());
         return group.isEmpty() ? getString(R.string.iptv_ungrouped) : group;
     }
@@ -297,13 +349,14 @@ public class IptvManagerActivity extends Activity {
         List<IptvChannel> base;
         if (scope.equals(S_ALL)) {
             base = new ArrayList<>(library.getChannels());
-        } else if (scope.equals(S_FAV)) {
+        } else if (scope.equals(S_FAV) || scope.startsWith(S_BUNDLE)) {
             Map<String, IptvChannel> byUrl = new HashMap<>();
             for (IptvChannel c : library.getChannels()) {
                 byUrl.put(c.key(), c);
             }
             base = new ArrayList<>();
-            for (String url : mUser.favorites()) {
+            List<String> members = scope.equals(S_FAV) ? mUser.favorites() : mUser.bundleItems(scope.substring(S_BUNDLE.length()));
+            for (String url : members) {
                 IptvChannel c = byUrl.get(url);
                 if (c != null) {
                     base.add(c);
@@ -330,6 +383,13 @@ public class IptvManagerActivity extends Activity {
         mFavSet = new HashSet<>(mUser.favorites());
         mLockedSet = mUser.locked();
         mSkippedSet = mUser.skipped();
+        List<String> allKeys = new ArrayList<>();
+        for (IptvChannel c : library.getChannels()) {
+            allKeys.add(c.key());
+        }
+        Map<String, Integer> fixed = mUser.fixedNumbers();
+        mNumbers = IptvNumbering.resolve(allKeys, fixed);
+        mFixedSet = new HashSet<>(fixed.keySet());
 
         // drop marks of channels that are no longer shown
         Set<String> shown = new HashSet<>();
@@ -485,14 +545,26 @@ public class IptvManagerActivity extends Activity {
             // too long: ignored
         }
         mDigits.setLength(0);
-        if (number >= 1 && number <= mRows.size()) {
-            if (mMoving) {
-                moveTo(number - 1);
+        if (mMoving) {
+            if (number >= 1 && number <= mRows.size()) {
+                moveTo(number - 1); // while moving the digits are a position in the list
             } else {
-                setCursor(number - 1);
+                toast(getString(R.string.iptv_mgr_no_such_number));
             }
         } else {
-            toast(getString(R.string.iptv_mgr_no_such_number));
+            int row = -1; // not moving: the digits are the channel number shown in the first column
+            for (int i = 0; i < mRows.size(); i++) {
+                Integer n = mNumbers.get(mRows.get(i).key());
+                if (n != null && n == number) {
+                    row = i;
+                    break;
+                }
+            }
+            if (row >= 0) {
+                setCursor(row);
+            } else {
+                toast(getString(R.string.iptv_mgr_no_such_number));
+            }
         }
         refresh();
     }
@@ -548,8 +620,11 @@ public class IptvManagerActivity extends Activity {
             urls.add(c.key());
         }
         try {
-            if (mScopes.get(mScopeIdx).equals(S_FAV)) {
+            String scope = mScopes.get(mScopeIdx);
+            if (scope.equals(S_FAV)) {
                 mUser.reorderFavorites(urls);
+            } else if (scope.startsWith(S_BUNDLE)) {
+                mUser.reorderBundle(scope.substring(S_BUNDLE.length()), urls);
             } else {
                 mStore.applyOrder(urls);
             }
@@ -648,16 +723,54 @@ public class IptvManagerActivity extends Activity {
     }
 
     private void playCurrent() {
+        playCurrent(false);
+    }
+
+    /** @param forceFull play full screen even when the small window is on */
+    private void playCurrent(final boolean forceFull) {
         final IptvChannel channel = current();
         if (channel == null) {
             return;
         }
         if (mLockedSet.contains(channel.key())) {
             IptvPin.verify(this, () -> {
-                IptvPin.allowOnce(channel.key());
-                startPlayer(channel);
+                if (forceFull || !miniEnabled()) {
+                    IptvPin.allowOnce(channel.key());
+                }
+                openChannel(channel, forceFull);
             }, null);
             return;
+        }
+        openChannel(channel, forceFull);
+    }
+
+    private boolean miniEnabled() {
+        return mPrefs.getPlayerMode() == IptvPrefs.PLAYER_INTERNAL && mPrefs.isMiniPlayer();
+    }
+
+    /** OK on a channel: plays it in the small window; OK on the channel that already plays there = full screen. */
+    private void openChannel(IptvChannel channel, boolean forceFull) {
+        if (forceFull || !miniEnabled()) {
+            startPlayer(channel);
+            return;
+        }
+        IptvChannel playing = mMini.channel();
+        if (playing != null && playing.key().equals(channel.key())) {
+            expandMini();
+            return;
+        }
+        mMini.play(channel);
+        refresh(); // the row of the playing channel gets its marker
+    }
+
+    /** The small window to full screen (the PIN was already entered when a locked channel started in the window). */
+    private void expandMini() {
+        IptvChannel channel = mMini.channel();
+        if (channel == null || mMoving) {
+            return;
+        }
+        if (mLockedSet.contains(channel.key())) {
+            IptvPin.allowOnce(channel.key());
         }
         startPlayer(channel);
     }
@@ -671,6 +784,8 @@ public class IptvManagerActivity extends Activity {
                 queue.add(c);
             }
         }
+        mResumeMini = mMini.hasChannel();
+        mMini.stop(); // one stream at a time: the full screen player takes over
         IptvSection.play(this, channel, queue);
     }
 
@@ -776,15 +891,21 @@ public class IptvManagerActivity extends Activity {
         if (urls.isEmpty() || mMoving) {
             return;
         }
-        final boolean favoritesTab = mScopes.get(mScopeIdx).equals(S_FAV);
+        final String delScope = mScopes.get(mScopeIdx);
+        final boolean bundleTab = delScope.startsWith(S_BUNDLE);
+        final boolean favoritesTab = delScope.equals(S_FAV) || bundleTab;
         String question = getString(favoritesTab ? R.string.iptv_mgr_unfavorite_confirm : R.string.iptv_mgr_delete_confirm, urls.size());
         confirm(question, () -> {
             try {
-                if (favoritesTab) {
+                if (bundleTab) {
+                    mUser.removeFromBundle(delScope.substring(S_BUNDLE.length()), urls); // only leaves this bundle
+                } else if (favoritesTab) {
                     mUser.removeFavorites(urls); // only leaves the favorites, the channel stays in the library
                 } else {
                     mStore.removeChannels(urls);
                     mUser.removeFavorites(urls);
+                    mUser.removeFromAllBundles(urls);
+                    mUser.clearFixedNumber(urls);
                     mUser.setLocked(urls, false);
                     mUser.setSkipped(urls, false);
                 }
@@ -848,8 +969,21 @@ public class IptvManagerActivity extends Activity {
 
             if (!multi) {
                 add(labels, actions, getString(R.string.iptv_play), this::playCurrent);
+                if (miniEnabled()) {
+                    add(labels, actions, getString(R.string.iptv_mini_play_full), () -> playCurrent(true));
+                }
             }
             add(labels, actions, getString(allFav ? R.string.iptv_remove_favorite : R.string.iptv_add_favorite), this::toggleFavorite);
+            add(labels, actions, getString(R.string.iptv_mgr_to_bundle), () -> pickBundle(false));
+            if (mScopes.get(mScopeIdx).equals(S_FAV) || currentBundleId() != null) {
+                add(labels, actions, getString(R.string.iptv_mgr_move_to_bundle), () -> pickBundle(true));
+            }
+            if (!multi) {
+                add(labels, actions, getString(R.string.iptv_mgr_fixed_number), this::askFixedNumber);
+            }
+            if (!Collections.disjoint(mFixedSet, urls)) {
+                add(labels, actions, getString(R.string.iptv_mgr_fixed_clear), this::clearFixedNumbers);
+            }
             add(labels, actions, getString(allLocked ? R.string.iptv_mgr_unlock : R.string.iptv_mgr_lock), this::toggleLock);
             add(labels, actions, getString(allSkipped ? R.string.iptv_mgr_unskip : R.string.iptv_mgr_skip), this::toggleSkip);
             add(labels, actions, getString(mMarked.contains(channel.key()) ? R.string.iptv_mgr_unmark : R.string.iptv_mgr_mark), this::toggleMark);
@@ -869,6 +1003,24 @@ public class IptvManagerActivity extends Activity {
                     () -> markAll(mMarked.size() < mRows.size()));
             add(labels, actions, getString(R.string.iptv_mgr_sort), this::sortAz);
         }
+        if (mMini.hasChannel()) {
+            add(labels, actions, getString(R.string.iptv_mini_expand), this::expandMini);
+            add(labels, actions, getString(R.string.iptv_mini_close), () -> {
+                mMini.close();
+                refresh();
+            });
+        }
+        if (mPrefs.getPlayerMode() == IptvPrefs.PLAYER_INTERNAL) {
+            add(labels, actions, getString(mPrefs.isMiniPlayer() ? R.string.iptv_mini_turn_off : R.string.iptv_mini_turn_on), () -> {
+                boolean on = !mPrefs.isMiniPlayer();
+                mPrefs.setMiniPlayer(on);
+                if (!on) {
+                    mMini.close();
+                }
+                refresh();
+            });
+        }
+        add(labels, actions, getString(R.string.iptv_mgr_bundles), this::showBundleManager);
         add(labels, actions, getString(R.string.iptv_section_search), this::askSearch);
         if (!mFilter.isEmpty()) {
             add(labels, actions, getString(R.string.iptv_mgr_clear_search), () -> {
@@ -887,6 +1039,219 @@ public class IptvManagerActivity extends Activity {
     private static void add(List<String> labels, List<Runnable> actions, String label, Runnable action) {
         labels.add(label);
         actions.add(action);
+    }
+
+    // ------------------------------------------------------------------ bundles / fixed numbers
+
+    /** @return the id of the bundle shown in the current tab, or null when the tab is not a bundle */
+    private String currentBundleId() {
+        String scope = mScopes.get(mScopeIdx);
+        return scope.startsWith(S_BUNDLE) ? scope.substring(S_BUNDLE.length()) : null;
+    }
+
+    private interface TextCallback {
+        void onText(String text);
+    }
+
+    private void askText(String title, String initial, final TextCallback callback) {
+        final EditText field = new EditText(this);
+        field.setSingleLine(true);
+        field.setText(initial);
+        field.setSelection(field.getText().length());
+        new AlertDialog.Builder(this)
+                .setTitle(title)
+                .setView(field)
+                .setPositiveButton(android.R.string.ok, (dialog, which) -> {
+                    String value = field.getText().toString().trim();
+                    if (!value.isEmpty()) {
+                        callback.onText(value);
+                    }
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    private void askFixedNumber() {
+        final IptvChannel channel = current();
+        if (channel == null || mMoving) {
+            return;
+        }
+        final EditText field = new EditText(this);
+        field.setInputType(InputType.TYPE_CLASS_NUMBER);
+        field.setSingleLine(true);
+        Integer now = mNumbers.get(channel.key());
+        if (now != null) {
+            field.setText(String.valueOf(now));
+            field.setSelection(field.getText().length());
+        }
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.iptv_mgr_fixed_title)
+                .setView(field)
+                .setPositiveButton(android.R.string.ok, (dialog, which) -> {
+                    int number;
+                    try {
+                        number = Integer.parseInt(field.getText().toString().trim());
+                    } catch (NumberFormatException e) {
+                        return;
+                    }
+                    if (number < 1 || number > 99999) {
+                        toast(getString(R.string.iptv_mgr_no_such_number));
+                        return;
+                    }
+                    String loser = mUser.setFixedNumber(channel.key(), number);
+                    mDirty = true;
+                    toast(loser != null ? getString(R.string.iptv_mgr_fixed_taken) : getString(R.string.iptv_mgr_fixed_set, number));
+                    reload();
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    private void clearFixedNumbers() {
+        List<String> urls = targets();
+        if (urls.isEmpty() || mMoving) {
+            return;
+        }
+        mUser.clearFixedNumber(urls);
+        mMarked.clear();
+        mDirty = true;
+        reload();
+    }
+
+    /** Copies (or moves) the marked channels / the channel under the cursor to the classic favorites or to a bundle. */
+    private void pickBundle(final boolean move) {
+        final List<String> urls = targets();
+        if (urls.isEmpty() || mMoving) {
+            return;
+        }
+        final String scope = mScopes.get(mScopeIdx);
+        final List<String> ids = new ArrayList<>();
+        final List<String> labels = new ArrayList<>();
+        if (!scope.equals(S_FAV)) {
+            ids.add("fav");
+            labels.add("\u2605 " + getString(R.string.iptv_favorites));
+        }
+        for (IptvUserData.Bundle b : mUser.bundles()) {
+            if (!scope.equals(S_BUNDLE + b.id)) {
+                ids.add(b.id);
+                labels.add("\u2605 " + b.name);
+            }
+        }
+        ids.add("new");
+        labels.add(getString(R.string.iptv_mgr_bundle_new));
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.iptv_mgr_bundle_pick)
+                .setItems(labels.toArray(new String[0]), (dialog, which) -> {
+                    final String target = ids.get(which);
+                    if (target.equals("new")) {
+                        askText(getString(R.string.iptv_mgr_bundle_name), "", name -> {
+                            String id = mUser.createBundle(name);
+                            if (id != null) {
+                                applyToTarget(id, urls, move);
+                            }
+                        });
+                    } else {
+                        applyToTarget(target, urls, move);
+                    }
+                })
+                .show();
+    }
+
+    private void applyToTarget(String target, List<String> urls, boolean move) {
+        if (target.equals("fav")) {
+            mUser.setFavorites(urls, true);
+        } else {
+            mUser.addToBundle(target, urls);
+        }
+        if (move) {
+            String fromBundle = currentBundleId();
+            if (fromBundle != null) {
+                mUser.removeFromBundle(fromBundle, urls);
+            } else if (mScopes.get(mScopeIdx).equals(S_FAV)) {
+                mUser.removeFavorites(urls);
+            }
+        }
+        mDirty = true;
+        mMarked.clear();
+        rebuildScopes(null);
+        reload();
+        toast(getString(R.string.iptv_mgr_bundle_done, urls.size()));
+    }
+
+    /** Create, rename, delete and re-order the bundles (the extra favorites lists shown as tabs). */
+    private void showBundleManager() {
+        if (mMoving) {
+            return;
+        }
+        final List<IptvUserData.Bundle> list = mUser.bundles();
+        final List<String> labels = new ArrayList<>();
+        for (IptvUserData.Bundle b : list) {
+            labels.add("\u2605 " + b.name + "  (" + mUser.bundleItems(b.id).size() + ")");
+        }
+        labels.add(getString(R.string.iptv_mgr_bundle_new));
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.iptv_mgr_bundles)
+                .setItems(labels.toArray(new String[0]), (dialog, which) -> {
+                    if (which == list.size()) {
+                        askText(getString(R.string.iptv_mgr_bundle_name), "", name -> {
+                            mUser.createBundle(name);
+                            mDirty = true;
+                            rebuildScopes(null);
+                            reload();
+                            showBundleManager();
+                        });
+                    } else {
+                        showBundleActions(list.get(which));
+                    }
+                })
+                .show();
+    }
+
+    private void showBundleActions(final IptvUserData.Bundle bundle) {
+        final List<String> labels = new ArrayList<>();
+        final List<Runnable> actions = new ArrayList<>();
+        add(labels, actions, getString(R.string.iptv_mgr_bundle_open), () -> {
+            rebuildScopes(S_BUNDLE + bundle.id);
+            mCursor = 0;
+            mMarked.clear();
+            mFilter = "";
+            reload();
+        });
+        add(labels, actions, getString(R.string.iptv_mgr_bundle_rename), () ->
+                askText(getString(R.string.iptv_mgr_bundle_name), bundle.name, name -> {
+                    mUser.renameBundle(bundle.id, name);
+                    mDirty = true;
+                    rebuildScopes(null);
+                    reload();
+                    showBundleManager();
+                }));
+        add(labels, actions, getString(R.string.iptv_mgr_bundle_up), () -> moveBundleTab(bundle.id, -1));
+        add(labels, actions, getString(R.string.iptv_mgr_bundle_down), () -> moveBundleTab(bundle.id, 1));
+        add(labels, actions, getString(R.string.iptv_mgr_bundle_delete), () ->
+                confirm(getString(R.string.iptv_mgr_bundle_delete_confirm, bundle.name), () -> {
+                    String keep = mScopes.get(mScopeIdx);
+                    if (keep.equals(S_BUNDLE + bundle.id)) {
+                        keep = S_FAV;
+                    }
+                    mUser.deleteBundle(bundle.id);
+                    mDirty = true;
+                    mMarked.clear();
+                    rebuildScopes(keep);
+                    reload();
+                    showBundleManager();
+                }));
+        new AlertDialog.Builder(this)
+                .setTitle("\u2605 " + bundle.name)
+                .setItems(labels.toArray(new String[0]), (dialog, which) -> actions.get(which).run())
+                .show();
+    }
+
+    private void moveBundleTab(String id, int delta) {
+        mUser.moveBundle(id, delta);
+        mDirty = true;
+        rebuildScopes(null);
+        reload();
+        showBundleManager();
     }
 
     // ------------------------------------------------------------------ keys
@@ -1128,11 +1493,16 @@ public class IptvManagerActivity extends Activity {
 
             IptvChannel c = mRows.get(position);
             String key = c.key();
-            h.number.setText(String.format(Locale.US, "%04d", position + 1));
+            Integer shownNumber = mNumbers.get(key);
+            h.number.setText(String.format(Locale.US, "%04d", shownNumber == null ? position + 1 : shownNumber));
+            h.number.setTextColor(mFixedSet.contains(key) ? C_GOLD : C_DIM); // gold = fixed number chosen by the user
             String label = displayName(c);
             int health = IptvHealth.instance(IptvManagerActivity.this).status(key);
             if (health == IptvHealth.BAD) {
                 label = "\uD83D\uDD34 " + label;
+            }
+            if (mMini.hasChannel() && key.equals(mMini.channel().key())) {
+                label = "\u25B6 " + label; // playing in the small window
             }
             h.name.setText(label);
             h.name.setTextColor(mSkippedSet.contains(key) ? C_DIM : Color.WHITE);

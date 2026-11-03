@@ -1394,4 +1394,27 @@
     <string name="iptv_ui_mode">Channel screen</string>
     <string name="iptv_ui_mode_cards">Cards (classic)</string>
     <string name="iptv_ui_mode_manager">Numbered list (channel manager)</string>
+    <string name="iptv_mgr_to_bundle">Copy to a bundle...</string>
+    <string name="iptv_mgr_move_to_bundle">Move to a bundle...</string>
+    <string name="iptv_mgr_bundle_pick">Choose the bundle</string>
+    <string name="iptv_mgr_bundle_new">+ New bundle...</string>
+    <string name="iptv_mgr_bundle_name">Bundle name</string>
+    <string name="iptv_mgr_bundles">Manage bundles...</string>
+    <string name="iptv_mgr_bundle_open">Open</string>
+    <string name="iptv_mgr_bundle_rename">Rename</string>
+    <string name="iptv_mgr_bundle_up">Move earlier</string>
+    <string name="iptv_mgr_bundle_down">Move later</string>
+    <string name="iptv_mgr_bundle_delete">Delete the bundle</string>
+    <string name="iptv_mgr_bundle_delete_confirm">Delete the bundle %1$s? The channels stay in the library.</string>
+    <string name="iptv_mgr_bundle_done">Done: %1$d channel(s)</string>
+    <string name="iptv_mgr_fixed_number">Set a fixed number...</string>
+    <string name="iptv_mgr_fixed_title">Fixed number for this channel</string>
+    <string name="iptv_mgr_fixed_clear">Remove the fixed number</string>
+    <string name="iptv_mgr_fixed_taken">The number was taken from another channel</string>
+    <string name="iptv_mgr_fixed_set">Fixed number: %1$d</string>
+    <string name="iptv_mini_play_full">Play full screen</string>
+    <string name="iptv_mini_expand">Small window to full screen</string>
+    <string name="iptv_mini_close">Close the small window</string>
+    <string name="iptv_mini_turn_off">Small window: turn off (OK plays full screen)</string>
+    <string name="iptv_mini_turn_on">Small window: turn on (OK plays in a small window)</string>
 </resources>
