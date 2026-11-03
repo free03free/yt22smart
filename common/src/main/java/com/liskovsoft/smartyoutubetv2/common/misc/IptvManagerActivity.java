@@ -1052,10 +1052,36 @@ public class IptvManagerActivity extends Activity {
         }
         add(labels, actions, getString(R.string.iptv_mgr_pin_change), () -> IptvPin.change(this));
 
-        new AlertDialog.Builder(this)
+        final AlertDialog menu = new AlertDialog.Builder(this)
                 .setTitle(channel == null ? getString(R.string.iptv_mgr_title) : displayName(channel))
                 .setItems(labels.toArray(new String[0]), (dialog, which) -> actions.get(which).run())
-                .show();
+                .create();
+        // The menu opens while OK is still held (long press): its repeats and its key-up must not reach the list,
+        // otherwise the first item is triggered or the list loses the focus and the remote seems dead.
+        final boolean[] held = {true};
+        menu.setOnKeyListener((d, code, ev) -> {
+            boolean center = code == KeyEvent.KEYCODE_DPAD_CENTER || code == KeyEvent.KEYCODE_ENTER || code == KeyEvent.KEYCODE_NUMPAD_ENTER;
+            if (!center || !held[0]) {
+                return false;
+            }
+            if (ev.getAction() == KeyEvent.ACTION_DOWN && ev.getRepeatCount() == 0) {
+                held[0] = false; // a fresh press: the long press was released long ago
+                return false;
+            }
+            if (ev.getAction() == KeyEvent.ACTION_UP) {
+                held[0] = false;
+            }
+            return true;
+        });
+        menu.setOnShowListener(d -> {
+            android.widget.ListView list = menu.getListView();
+            if (list != null) {
+                list.setItemsCanFocus(false);
+                list.requestFocus();
+                list.post(() -> list.setSelection(0)); // the remote has a first item to move from
+            }
+        });
+        menu.show();
     }
 
     private static void add(List<String> labels, List<Runnable> actions, String label, Runnable action) {
