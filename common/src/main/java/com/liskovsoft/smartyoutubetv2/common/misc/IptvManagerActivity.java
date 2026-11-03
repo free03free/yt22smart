@@ -1079,10 +1079,11 @@ public class IptvManagerActivity extends Activity {
         mMenuHeld = true; // OK is still held when the menu comes from a long press: its repeats / key-up are ignored
         mMenuPressed = false;
 
-        final int rowH = dp(52);
+        final int rowH = dp(48);
         final int rowGap = dp(3);
         int screenW = getResources().getDisplayMetrics().widthPixels;
-        int screenH = getResources().getDisplayMetrics().heightPixels;
+        // the real visible height (a phone in landscape is short): the panel never gets taller than the screen
+        int screenH = mFrame.getHeight() > 0 ? mFrame.getHeight() : getResources().getDisplayMetrics().heightPixels;
 
         FrameLayout scrim = new FrameLayout(this);
         scrim.setBackgroundColor(0xB3000000);
@@ -1173,17 +1174,20 @@ public class IptvManagerActivity extends Activity {
         };
         mMenuList.setAdapter(mMenuAdapter);
         mMenuList.setOnItemClickListener((parent, view, position, id) -> runMenuItem(position));
-        mMenuListHeight = Math.min(labels.size() * rowH, Math.round(screenH * 0.58f));
+        final int fixedParts = dp(118); // header + counter + line + hint
+        final int panelH = Math.min(fixedParts + labels.size() * rowH, screenH - dp(20));
+        mMenuListHeight = Math.max(rowH, panelH - fixedParts);
         mMenuRowHeight = rowH;
         mMenuCounter = counter;
-        panel.addView(mMenuList, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, mMenuListHeight));
+        // the list takes whatever the panel has left (weight), so the last options are never cut off
+        panel.addView(mMenuList, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
 
         TextView hint = text(getString(R.string.iptv_menu_hint), 12, 0xFF78909C, Gravity.CENTER);
         hint.setPadding(dp(14), dp(8), dp(14), dp(12));
         panel.addView(hint, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         int width = Math.max(dp(280), Math.min(dp(440), Math.round(screenW * 0.58f)));
-        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(width, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER);
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(width, panelH, Gravity.CENTER);
         scrim.addView(panel, lp);
         mMenuOverlay = scrim;
         mFrame.addView(scrim, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
@@ -1234,7 +1238,8 @@ public class IptvManagerActivity extends Activity {
         updateMenuCounter();
         // the selected row stays in the middle of the list (at the ends the list simply stops): always in view
         final int pos = mMenuSel;
-        final int offset = Math.max(0, (mMenuListHeight - mMenuRowHeight) / 2);
+        int listH = mMenuList.getHeight() > 0 ? mMenuList.getHeight() : mMenuListHeight;
+        final int offset = Math.max(0, (listH - mMenuRowHeight) / 2);
         mMenuList.setSelectionFromTop(pos, offset);
         mMenuList.post(() -> {
             if (mMenuList != null && pos == mMenuSel) {
