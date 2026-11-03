@@ -365,7 +365,9 @@ public class IptvPlayerActivity extends Activity {
     /** The settings can change in the manager, so the panel re-reads them each time it opens. */
     private void applyPanelSettings() {
         mChannelList.setBackgroundColor(panelBackground());
-        mPanelRtl = isPanelRtl();
+        // Panel on the right: RTL rows (number on the right edge, names aligned right).
+        // Panel on the left: mirrored rows (number on the left edge, names aligned left), so the text always hugs the screen edge.
+        mPanelRtl = IptvPrefs.instance(this).getPanelSide() == IptvPrefs.PANEL_RIGHT && isPanelRtl();
         mChannelList.setLayoutDirection(mPanelRtl ? View.LAYOUT_DIRECTION_RTL : View.LAYOUT_DIRECTION_LTR);
         mChannelList.setVerticalScrollbarPosition(mPanelRtl ? View.SCROLLBAR_POSITION_LEFT : View.SCROLLBAR_POSITION_RIGHT);
         android.graphics.Paint paint = new android.graphics.Paint();
