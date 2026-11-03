@@ -401,7 +401,7 @@ public final class IptvSection {
         List<IptvChannel> list = unsortedChannelsOfCurrentView(library, user);
         if (sortAz && !sView.equals(VIEW_FAVORITES) && !sView.equals(VIEW_RECENT)) {
             list = new ArrayList<>(list);
-            Collections.sort(list, (a, b) -> String.valueOf(a.name).compareToIgnoreCase(String.valueOf(b.name)));
+            Collections.sort(list, (a, b) -> com.liskovsoft.smartyoutubetv2.common.iptv.ArabicSort.COMPARATOR.compare(String.valueOf(a.name), String.valueOf(b.name)));
         }
         return list;
     }

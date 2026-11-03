@@ -741,7 +741,7 @@ public class IptvManagerActivity extends Activity {
         }
         confirm(getString(R.string.iptv_mgr_sort_confirm), () -> {
             List<IptvChannel> sorted = new ArrayList<>(mRows);
-            Collections.sort(sorted, (a, b) -> String.valueOf(a.name).compareToIgnoreCase(String.valueOf(b.name)));
+            Collections.sort(sorted, (a, b) -> com.liskovsoft.smartyoutubetv2.common.iptv.ArabicSort.COMPARATOR.compare(String.valueOf(a.name), String.valueOf(b.name)));
             mRows = sorted;
             persistOrder(getString(R.string.iptv_mgr_sorted));
             refresh();

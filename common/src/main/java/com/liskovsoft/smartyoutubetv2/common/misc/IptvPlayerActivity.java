@@ -116,6 +116,8 @@ public class IptvPlayerActivity extends Activity {
     private TextView mQualityView;
     /** Side list of the channels, opened with OK over the picture. */
     private ListView mChannelList;
+    private boolean mPanelRtl;
+    private int mNumberWidth;
     private BaseAdapter mChannelAdapter;
     private boolean mSwallowCenterUp;
     /** The current OK press already became a long press (controls shown), so its release must not open the list. */
@@ -265,15 +267,50 @@ public class IptvPlayerActivity extends Activity {
 
             @Override
             public View getView(int position, View convertView, ViewGroup parent) {
-                TextView row = convertView instanceof TextView ? (TextView) convertView : new TextView(IptvPlayerActivity.this);
+                // Row = [number][name]. In an RTL list the number sits on the right edge and the name follows it,
+                // whichever side of the screen the panel is on.
+                LinearLayout row;
+                TextView number;
+                TextView nameView;
+                if (convertView instanceof LinearLayout) {
+                    row = (LinearLayout) convertView;
+                    number = (TextView) row.getChildAt(0);
+                    nameView = (TextView) row.getChildAt(1);
+                } else {
+                    row = new LinearLayout(IptvPlayerActivity.this);
+                    row.setOrientation(LinearLayout.HORIZONTAL);
+                    row.setGravity(Gravity.CENTER_VERTICAL);
+                    number = new TextView(IptvPlayerActivity.this);
+                    number.setSingleLine(true);
+                    number.setGravity(Gravity.CENTER_VERTICAL | Gravity.START);
+                    nameView = new TextView(IptvPlayerActivity.this);
+                    nameView.setSingleLine(true);
+                    nameView.setEllipsize(android.text.TextUtils.TruncateAt.END);
+                    nameView.setGravity(Gravity.CENTER_VERTICAL | Gravity.START);
+                    // Arabic name -> RTL paragraph; Latin name -> LTR paragraph (keeps "(552p)" and "+1" in place)
+                    nameView.setTextDirection(View.TEXT_DIRECTION_FIRST_STRONG_RTL);
+                    LinearLayout.LayoutParams nameLp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+                    nameLp.setMarginStart(dp(6));
+                    row.addView(number, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+                    row.addView(nameView, nameLp);
+                    row.setPadding(dp(12), dp(6), dp(12), dp(6));
+                }
+                row.setLayoutDirection(mPanelRtl ? View.LAYOUT_DIRECTION_RTL : View.LAYOUT_DIRECTION_LTR);
+                number.setTextDirection(mPanelRtl ? View.TEXT_DIRECTION_RTL : View.TEXT_DIRECTION_LTR);
+                number.setTextAlignment(View.TEXT_ALIGNMENT_VIEW_START);
+                nameView.setTextAlignment(View.TEXT_ALIGNMENT_VIEW_START);
+
                 IptvChannel c = mQueue.get(position);
                 String name = c.name == null || c.name.trim().isEmpty() ? c.url : c.name;
-                row.setText((position + 1) + ".  " + name);
-                row.setTextSize(TypedValue.COMPLEX_UNIT_SP, IptvPrefs.instance(IptvPlayerActivity.this).getPanelFont());
-                row.setTextColor(position == mIndex ? 0xFFFFC107 : Color.WHITE);
-                row.setSingleLine(true);
-                row.setEllipsize(android.text.TextUtils.TruncateAt.END);
-                row.setPadding(dp(9), dp(6), dp(9), dp(6));
+                float sp = IptvPrefs.instance(IptvPlayerActivity.this).getPanelFont();
+                int color = position == mIndex ? 0xFFFFC107 : Color.WHITE;
+                number.setText((position + 1) + ".");
+                number.setMinWidth(mNumberWidth);
+                number.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp);
+                number.setTextColor(color);
+                nameView.setText(name);
+                nameView.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp);
+                nameView.setTextColor(color);
                 return row;
             }
         };
@@ -302,9 +339,42 @@ public class IptvPlayerActivity extends Activity {
         return IptvPrefs.instance(this).getPanelSide() == IptvPrefs.PANEL_RIGHT ? (Gravity.RIGHT | Gravity.FILL_VERTICAL) : (Gravity.LEFT | Gravity.FILL_VERTICAL);
     }
 
+    /**
+     * The list reads right-to-left (number on the right edge, names aligned right) when the app language is RTL or most
+     * channel names are Arabic. This is independent of the side the panel is on.
+     */
+    private boolean isPanelRtl() {
+        if (android.text.TextUtils.getLayoutDirectionFromLocale(java.util.Locale.getDefault()) == View.LAYOUT_DIRECTION_RTL
+                || getResources().getConfiguration().getLayoutDirection() == View.LAYOUT_DIRECTION_RTL) {
+            return true;
+        }
+        int arabic = 0;
+        for (IptvChannel c : mQueue) {
+            String n = c.name == null ? "" : c.name;
+            for (int i = 0; i < n.length(); i++) {
+                char ch = n.charAt(i);
+                if (ch >= '\u0600' && ch <= '\u06FF') {
+                    arabic++;
+                    break;
+                }
+            }
+        }
+        return arabic * 2 > mQueue.size();
+    }
+
     /** The settings can change in the manager, so the panel re-reads them each time it opens. */
     private void applyPanelSettings() {
         mChannelList.setBackgroundColor(panelBackground());
+        mPanelRtl = isPanelRtl();
+        mChannelList.setLayoutDirection(mPanelRtl ? View.LAYOUT_DIRECTION_RTL : View.LAYOUT_DIRECTION_LTR);
+        mChannelList.setVerticalScrollbarPosition(mPanelRtl ? View.SCROLLBAR_POSITION_LEFT : View.SCROLLBAR_POSITION_RIGHT);
+        android.graphics.Paint paint = new android.graphics.Paint();
+        paint.setTextSize(TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, IptvPrefs.instance(this).getPanelFont(), getResources().getDisplayMetrics()));
+        StringBuilder widest = new StringBuilder();
+        for (int i = String.valueOf(mQueue.size()).length(); i > 0; i--) {
+            widest.append('8');
+        }
+        mNumberWidth = Math.round(paint.measureText(widest + "."));
         FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(panelWidth(), ViewGroup.LayoutParams.MATCH_PARENT, panelGravity());
         mChannelList.setLayoutParams(lp);
     }
