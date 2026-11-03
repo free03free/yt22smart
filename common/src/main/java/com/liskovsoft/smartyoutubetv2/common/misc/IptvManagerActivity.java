@@ -163,6 +163,13 @@ public class IptvManagerActivity extends Activity {
         return view;
     }
 
+    /** Aligns the text to the left edge of its (left-to-right) cell, whatever the language of the text is. */
+    private static void alignToViewStart(TextView view) {
+        if (android.os.Build.VERSION.SDK_INT >= 17) {
+            view.setTextAlignment(View.TEXT_ALIGNMENT_VIEW_START);
+        }
+    }
+
     private void buildViews() {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
@@ -171,6 +178,10 @@ public class IptvManagerActivity extends Activity {
         if (android.os.Build.VERSION.SDK_INT >= 17) {
             root.setLayoutDirection(View.LAYOUT_DIRECTION_LTR); // number column on the left, like a receiver, also in Arabic
         }
+        // The remote is handled by the activity itself (cursor, OK, long OK ...). If a button took the focus, OK would
+        // "click" that button (it used to switch the tab) and Up / Down would move the focus instead of the cursor.
+        root.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
+        root.setFocusable(false);
 
         TextView title = text(getString(R.string.iptv_mgr_title), 24, C_TITLE, Gravity.CENTER);
         title.setTypeface(Typeface.DEFAULT_BOLD);
@@ -221,6 +232,7 @@ public class IptvManagerActivity extends Activity {
         row.setGravity(Gravity.CENTER_VERTICAL);
         row.addView(text(getString(R.string.iptv_mgr_col_no), 18, C_GOLD, Gravity.CENTER), new LinearLayout.LayoutParams(dp(74), ViewGroup.LayoutParams.WRAP_CONTENT));
         TextView name = text(getString(R.string.iptv_mgr_col_name), 18, C_GOLD, Gravity.START | Gravity.CENTER_VERTICAL);
+        alignToViewStart(name);
         row.addView(name, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
         String[] marks = {"\u2605", "\uD83D\uDD12", "\u23ED", "\u2714"};
         for (String mark : marks) {
@@ -910,10 +922,15 @@ public class IptvManagerActivity extends Activity {
             case KeyEvent.KEYCODE_DPAD_CENTER:
             case KeyEvent.KEYCODE_ENTER:
             case KeyEvent.KEYCODE_NUMPAD_ENTER:
-                if (mDigits.length() > 0) { // typed number + OK = go there now
-                    commitDigits();
-                    mCenterLong = true; // swallow the key-up
-                    return true;
+                if (first) {
+                    mCenterLong = false; // a new press (the menu may have swallowed the previous key-up)
+                    if (mDigits.length() > 0) { // typed number + OK = go there now
+                        commitDigits();
+                        mCenterLong = true; // swallow the key-up
+                        return true;
+                    }
+                } else if (event.getRepeatCount() >= 8) {
+                    openMenuFromLongPress(); // some remotes never report a long press: held long enough = menu
                 }
                 event.startTracking();
                 return true;
@@ -984,11 +1001,18 @@ public class IptvManagerActivity extends Activity {
         return super.onKeyDown(keyCode, event);
     }
 
+    private void openMenuFromLongPress() {
+        if (mCenterLong) {
+            return; // already opened for this press
+        }
+        mCenterLong = true;
+        showMenu();
+    }
+
     @Override
     public boolean onKeyLongPress(int keyCode, KeyEvent event) {
         if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER || keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER) {
-            mCenterLong = true;
-            showMenu();
+            openMenuFromLongPress();
             return true;
         }
         return super.onKeyLongPress(keyCode, event);
@@ -1066,6 +1090,7 @@ public class IptvManagerActivity extends Activity {
                 holder.name = text("", 20, Color.WHITE, Gravity.START | Gravity.CENTER_VERTICAL);
                 holder.name.setEllipsize(android.text.TextUtils.TruncateAt.END);
                 holder.name.setPadding(dp(6), 0, dp(6), 0);
+                alignToViewStart(holder.name);
                 holder.fav = text("", 20, Color.parseColor("#FFD54F"), Gravity.CENTER);
                 holder.lock = text("", 18, Color.WHITE, Gravity.CENTER);
                 holder.skip = text("", 18, Color.parseColor("#81C784"), Gravity.CENTER);
