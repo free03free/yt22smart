@@ -297,8 +297,13 @@ public class IptvPlayerActivity extends Activity {
                 }
                 row.setLayoutDirection(mPanelRtl ? View.LAYOUT_DIRECTION_RTL : View.LAYOUT_DIRECTION_LTR);
                 number.setTextDirection(mPanelRtl ? View.TEXT_DIRECTION_RTL : View.TEXT_DIRECTION_LTR);
-                number.setTextAlignment(View.TEXT_ALIGNMENT_VIEW_START);
-                nameView.setTextAlignment(View.TEXT_ALIGNMENT_VIEW_START);
+                // Physical alignment (not relative to the text direction): panel on the left -> everything hugs the left
+                // edge, panel on the right -> everything hugs the right edge, whatever the script of the name is.
+                int edge = mPanelRtl ? Gravity.RIGHT : Gravity.LEFT;
+                number.setTextAlignment(View.TEXT_ALIGNMENT_GRAVITY);
+                number.setGravity(Gravity.CENTER_VERTICAL | edge);
+                nameView.setTextAlignment(View.TEXT_ALIGNMENT_GRAVITY);
+                nameView.setGravity(Gravity.CENTER_VERTICAL | edge);
 
                 IptvChannel c = mQueue.get(position);
                 String name = c.name == null || c.name.trim().isEmpty() ? c.url : c.name;
