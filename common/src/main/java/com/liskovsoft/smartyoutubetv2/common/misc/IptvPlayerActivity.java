@@ -273,7 +273,7 @@ public class IptvPlayerActivity extends Activity {
                 row.setTextColor(position == mIndex ? 0xFFFFC107 : Color.WHITE);
                 row.setSingleLine(true);
                 row.setEllipsize(android.text.TextUtils.TruncateAt.END);
-                row.setPadding(dp(14), dp(10), dp(14), dp(10));
+                row.setPadding(dp(9), dp(6), dp(9), dp(6));
                 return row;
             }
         };
