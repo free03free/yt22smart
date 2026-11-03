@@ -1126,7 +1126,37 @@ public class IptvManagerActivity extends Activity {
                 list.postDelayed(selectFirst, 150);
             }
         });
-        menu.show();
+        menu.setOnDismissListener(d -> {
+            if (mMenu == menu) {
+                mMenu = null;
+            }
+        });
+        mMenu = menu;
+        // Shown a moment later, outside the long-press key dispatch: otherwise the window often does not get the input
+        // focus and the remote seems dead until the app is left and entered again.
+        mHandler.postDelayed(() -> {
+            if (mMenu == menu && !isFinishing()) {
+                menu.show();
+            }
+        }, 120);
+    }
+
+    /** The options menu that is open (or about to open); keys that still reach the activity are handed to it. */
+    private AlertDialog mMenu;
+
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        AlertDialog menu = mMenu;
+        if (menu != null) {
+            if (menu.isShowing()) {
+                if (menu.dispatchKeyEvent(event)) {
+                    return true;
+                }
+            } else {
+                return true; // not shown yet: do not move the list behind it
+            }
+        }
+        return super.dispatchKeyEvent(event);
     }
 
     private static void add(List<String> labels, List<Runnable> actions, String label, Runnable action) {
