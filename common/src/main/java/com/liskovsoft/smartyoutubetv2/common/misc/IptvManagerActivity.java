@@ -1079,29 +1079,49 @@ public class IptvManagerActivity extends Activity {
         mMenuHeld = true; // OK is still held when the menu comes from a long press: its repeats / key-up are ignored
         mMenuPressed = false;
 
+        final int rowH = dp(52);
+        final int rowGap = dp(3);
+        int screenW = getResources().getDisplayMetrics().widthPixels;
+        int screenH = getResources().getDisplayMetrics().heightPixels;
+
         FrameLayout scrim = new FrameLayout(this);
-        scrim.setBackgroundColor(0xAA000000);
+        scrim.setBackgroundColor(0xB3000000);
         scrim.setClickable(true);
         scrim.setOnClickListener(v -> closeMenuOverlay());
 
         LinearLayout panel = new LinearLayout(this);
         panel.setOrientation(LinearLayout.VERTICAL);
-        GradientDrawable bg = new GradientDrawable();
-        bg.setColor(0xFF1B2733);
-        bg.setStroke(dp(2), C_GOLD);
-        bg.setCornerRadius(dp(10));
+        GradientDrawable bg = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{0xFF1C2A3A, 0xFF121B26});
+        bg.setStroke(dp(1), 0x44FFFFFF);
+        bg.setCornerRadius(dp(16));
         panel.setBackground(bg);
         panel.setClickable(true); // a tap inside the panel does not close it
+        if (android.os.Build.VERSION.SDK_INT >= 21) {
+            panel.setElevation(dp(16));
+        }
 
-        TextView head = text(title, 20, C_GOLD, Gravity.CENTER);
+        // header: the channel name, a thin gold line and the position inside the menu
+        TextView head = text(title, 19, Color.WHITE, Gravity.CENTER);
         head.setTypeface(Typeface.DEFAULT_BOLD);
         head.setSingleLine(true);
-        head.setPadding(dp(12), dp(10), dp(12), dp(10));
+        head.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        head.setPadding(dp(18), dp(14), dp(18), dp(4));
         panel.addView(head, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        final TextView counter = text("", 13, 0xFF90A4AE, Gravity.CENTER);
+        counter.setPadding(dp(18), 0, dp(18), dp(8));
+        panel.addView(counter, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        View line = new View(this);
+        line.setBackgroundColor(0x66F5C542);
+        LinearLayout.LayoutParams lineLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(1));
+        lineLp.setMargins(dp(18), 0, dp(18), dp(6));
+        panel.addView(line, lineLp);
 
         mMenuList = new ListView(this);
         mMenuList.setDivider(null);
         mMenuList.setFocusable(false);
+        mMenuList.setVerticalScrollBarEnabled(true);
+        mMenuList.setOverScrollMode(View.OVER_SCROLL_NEVER);
+        mMenuList.setSelector(new ColorDrawable(Color.TRANSPARENT));
         mMenuAdapter = new BaseAdapter() {
             @Override
             public int getCount() {
@@ -1120,29 +1140,71 @@ public class IptvManagerActivity extends Activity {
 
             @Override
             public View getView(int position, View convertView, ViewGroup parent) {
-                TextView row = convertView instanceof TextView ? (TextView) convertView : new TextView(IptvManagerActivity.this);
+                FrameLayout cell;
+                TextView row;
+                if (convertView instanceof FrameLayout) {
+                    cell = (FrameLayout) convertView;
+                    row = (TextView) cell.getChildAt(0);
+                } else {
+                    cell = new FrameLayout(IptvManagerActivity.this);
+                    cell.setLayoutParams(new android.widget.AbsListView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, rowH));
+                    cell.setPadding(dp(10), rowGap, dp(10), rowGap);
+                    row = new TextView(IptvManagerActivity.this);
+                    row.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 17);
+                    row.setGravity(Gravity.CENTER_VERTICAL | Gravity.START);
+                    row.setSingleLine(true);
+                    row.setEllipsize(android.text.TextUtils.TruncateAt.END);
+                    row.setPadding(dp(16), 0, dp(16), 0);
+                    cell.addView(row, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+                }
+                boolean on = position == mMenuSel;
                 row.setText(mMenuLabels.get(position));
-                row.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 18);
-                row.setTextColor(Color.WHITE);
-                row.setGravity(Gravity.CENTER_VERTICAL | Gravity.START);
-                row.setPadding(dp(18), dp(12), dp(18), dp(12));
-                row.setBackgroundColor(position == mMenuSel ? 0xFF1E88E5 : Color.TRANSPARENT);
-                return row;
+                row.setTextColor(on ? Color.WHITE : 0xFFB0BEC5);
+                row.setTypeface(on ? Typeface.DEFAULT_BOLD : Typeface.DEFAULT);
+                GradientDrawable pill = new GradientDrawable();
+                pill.setCornerRadius(dp(10));
+                pill.setColor(on ? 0xFF1E88E5 : Color.TRANSPARENT);
+                if (on) {
+                    pill.setStroke(dp(2), 0xFFFFC107); // the selected option can not be missed
+                }
+                row.setBackground(pill);
+                return cell;
             }
         };
         mMenuList.setAdapter(mMenuAdapter);
         mMenuList.setOnItemClickListener((parent, view, position, id) -> runMenuItem(position));
+        mMenuListHeight = Math.min(labels.size() * rowH, Math.round(screenH * 0.58f));
+        mMenuRowHeight = rowH;
+        mMenuCounter = counter;
+        panel.addView(mMenuList, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, mMenuListHeight));
 
-        int screenW = getResources().getDisplayMetrics().widthPixels;
-        int screenH = getResources().getDisplayMetrics().heightPixels;
-        int listH = Math.min(labels.size() * dp(50), Math.round(screenH * 0.62f));
-        panel.addView(mMenuList, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, listH));
+        TextView hint = text(getString(R.string.iptv_menu_hint), 12, 0xFF78909C, Gravity.CENTER);
+        hint.setPadding(dp(14), dp(8), dp(14), dp(12));
+        panel.addView(hint, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
-        int width = Math.max(dp(260), Math.min(dp(480), Math.round(screenW * 0.62f)));
+        int width = Math.max(dp(280), Math.min(dp(440), Math.round(screenW * 0.58f)));
         FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(width, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER);
         scrim.addView(panel, lp);
         mMenuOverlay = scrim;
         mFrame.addView(scrim, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+
+        // soft appearance
+        scrim.setAlpha(0f);
+        panel.setScaleX(0.94f);
+        panel.setScaleY(0.94f);
+        scrim.animate().alpha(1f).setDuration(140).start();
+        panel.animate().scaleX(1f).scaleY(1f).setDuration(140).start();
+        updateMenuCounter();
+    }
+
+    private int mMenuListHeight;
+    private int mMenuRowHeight;
+    private TextView mMenuCounter;
+
+    private void updateMenuCounter() {
+        if (mMenuCounter != null && mMenuLabels != null) {
+            mMenuCounter.setText((mMenuSel + 1) + " / " + mMenuLabels.size());
+        }
     }
 
     private void closeMenuOverlay() {
@@ -1164,12 +1226,21 @@ public class IptvManagerActivity extends Activity {
 
     private void moveMenuSelection(int step) {
         int count = mMenuLabels.size();
-        if (count == 0) {
+        if (count == 0 || mMenuList == null) {
             return;
         }
         mMenuSel = (mMenuSel + step + count) % count;
         mMenuAdapter.notifyDataSetChanged();
-        mMenuList.smoothScrollToPosition(mMenuSel);
+        updateMenuCounter();
+        // the selected row stays in the middle of the list (at the ends the list simply stops): always in view
+        final int pos = mMenuSel;
+        final int offset = Math.max(0, (mMenuListHeight - mMenuRowHeight) / 2);
+        mMenuList.setSelectionFromTop(pos, offset);
+        mMenuList.post(() -> {
+            if (mMenuList != null && pos == mMenuSel) {
+                mMenuList.setSelectionFromTop(pos, offset);
+            }
+        });
     }
 
     private boolean handleMenuKey(KeyEvent ev) {

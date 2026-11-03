@@ -1408,6 +1408,7 @@
     <string name="iptv_mini_expand">تكبير النافذة المصغرة</string>
     <string name="iptv_mini_sel_turn_off">يمين/يسار مع النافذة المصغّرة: التنقل بين المجموعات (إيقاف اختيار النافذة)</string>
     <string name="iptv_mini_sel_turn_on">يمين/يسار مع النافذة المصغّرة: اختيار النافذة بدل التنقل بين المجموعات (تشغيل)</string>
+    <string name="iptv_menu_hint">▲ ▼ تنقّل   •   OK تنفيذ   •   رجوع إغلاق</string>
     <string name="iptv_mini_close">إغلاق النافذة المصغرة</string>
     <string name="iptv_mini_turn_off">النافذة المصغرة: إيقاف (OK يشغّل بملء الشاشة)</string>
     <string name="iptv_mini_turn_on">النافذة المصغرة: تفعيل (OK يشغّل في نافذة صغيرة)</string>
