@@ -1508,4 +1508,6 @@
     <string name="dl_apps_deleted">تم الحذف: %1$d</string>
     <string name="dl_apps_install">تثبيت</string>
     <string name="dl_apps_delete">حذف</string>
+    <string name="custom_update_hide">إخفاء</string>
+    <string name="custom_update_background">يستمر تحميل التحديث في الخلفية</string>
 </resources>

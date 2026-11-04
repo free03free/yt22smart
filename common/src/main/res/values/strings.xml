@@ -1516,4 +1516,6 @@
     <string name="dl_apps_deleted">Deleted: %1$d</string>
     <string name="dl_apps_install">Install</string>
     <string name="dl_apps_delete">Delete</string>
+    <string name="custom_update_hide">Hide</string>
+    <string name="custom_update_background">The update keeps downloading in the background</string>
 </resources>

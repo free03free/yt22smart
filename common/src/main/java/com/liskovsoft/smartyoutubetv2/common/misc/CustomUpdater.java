@@ -187,6 +187,11 @@ public final class CustomUpdater {
                         .setView(box)
                         .setCancelable(false)
                         .setNegativeButton(android.R.string.cancel, (dlg, which) -> cancelled = true)
+                        // Hide: the download goes on in the background, progress is shown by short messages
+                        .setNeutralButton(R.string.custom_update_hide, (dlg, which) -> {
+                            mDialog = null;
+                            MessageHelpers.showMessage(mApp, mApp.getString(R.string.custom_update_background));
+                        })
                         .create();
                 mDialog.show();
             } catch (Exception e) {
