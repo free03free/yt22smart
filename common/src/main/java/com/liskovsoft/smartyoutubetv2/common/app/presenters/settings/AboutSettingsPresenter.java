@@ -14,7 +14,10 @@ import com.liskovsoft.smartyoutubetv2.common.app.presenters.dialogs.ATVBridgePre
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.dialogs.AmazonBridgePresenter;
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.dialogs.AppUpdatePresenter;
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.base.BasePresenter;
+import com.liskovsoft.smartyoutubetv2.common.misc.CustomUpdater;
+import com.liskovsoft.smartyoutubetv2.common.misc.DownloadedApks;
 import com.liskovsoft.smartyoutubetv2.common.prefs.GeneralData;
+import com.liskovsoft.smartyoutubetv2.common.utils.AppDialogUtil;
 import com.liskovsoft.smartyoutubetv2.common.utils.Utils;
 
 import java.util.ArrayList;
@@ -48,6 +51,8 @@ public class AboutSettingsPresenter extends BasePresenter<Void> {
         CustomUpdateButtons.append(settingsPresenter, getContext());
 
         appendAutoUpdateSwitch(settingsPresenter);
+
+        appendDownloadedAppsButton(settingsPresenter);
 
         appendUpdateChangelogButton(settingsPresenter);
 
