@@ -49,6 +49,7 @@ public final class IptvWebReceiver {
 
     private final Listener mListener;
     private final String mPin;
+    private final int mFixedPort;
     private final long mMaxBody;
     private volatile ServerSocket mServer;
     private volatile long mLastActivity;
@@ -56,6 +57,12 @@ public final class IptvWebReceiver {
 
     /** @param maxBytes largest accepted request in bytes; 0 or less = no limit of our own */
     public IptvWebReceiver(Listener listener, String pin, long maxBytes) {
+        this(listener, pin, maxBytes, 0);
+    }
+
+    /** @param fixedPort the only port to use (1024-65535); 0 = the first free one from 8085 */
+    public IptvWebReceiver(Listener listener, String pin, long maxBytes, int fixedPort) {
+        mFixedPort = fixedPort;
         mListener = listener;
         mPin = pin;
         mMaxBody = maxBytes <= 0 ? HARD_LIMIT : Math.min(maxBytes, HARD_LIMIT);
@@ -80,7 +87,9 @@ public final class IptvWebReceiver {
             return;
         }
         IOException last = null;
-        for (int p = FIRST_PORT; p < FIRST_PORT + PORTS; p++) {
+        int first = mFixedPort > 0 ? mFixedPort : FIRST_PORT;
+        int count = mFixedPort > 0 ? 1 : PORTS;
+        for (int p = first; p < first + count; p++) {
             try {
                 mServer = new ServerSocket(p);
                 break;

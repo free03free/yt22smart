@@ -1,4 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths>
     <cache-path name="updates" path="updates/" />
+    <cache-path name="cache_all" path="." />
+    <files-path name="files_all" path="." />
+    <external-cache-path name="ext_cache_all" path="." />
+    <external-files-path name="ext_files_all" path="." />
 </paths>

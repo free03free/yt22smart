@@ -30,6 +30,9 @@ import com.liskovsoft.smartyoutubetv2.common.R;
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.service.IptvSection;
 import com.liskovsoft.smartyoutubetv2.common.iptv.IptvChannel;
 import com.liskovsoft.smartyoutubetv2.common.iptv.IptvHealth;
+import com.liskovsoft.smartyoutubetv2.common.iptv.IptvOptions;
+import com.liskovsoft.smartyoutubetv2.common.iptv.HttpIptvFetcher;
+import com.liskovsoft.smartyoutubetv2.common.iptv.IptvHealthChecker;
 import com.liskovsoft.smartyoutubetv2.common.iptv.IptvNames;
 import com.liskovsoft.smartyoutubetv2.common.iptv.IptvNumbering;
 import com.liskovsoft.smartyoutubetv2.common.iptv.IptvPlaylist;
@@ -39,6 +42,7 @@ import com.liskovsoft.smartyoutubetv2.common.iptv.IptvUserData;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -474,6 +478,77 @@ public class IptvManagerActivity extends Activity {
     private String displayName(IptvChannel c) {
         String name = c.name == null || c.name.trim().isEmpty() ? c.url : c.name;
         return mPrefs.isHidePrefix() ? IptvNames.stripPrefix(name) : name;
+    }
+
+    private static final int C_OK = 0xFF2ECC71;
+    private static final int C_OK_TEXT = 0xFFA5E8B5;
+    private static final int C_BAD = 0xFFFF5252;
+    private static final int C_BAD_TEXT = 0xFFFF9A9A;
+
+    private long mLastCheckToast;
+
+    /** Checks the marked channels (or all of the list on screen) in the background; the dots appear while it runs. */
+    private void startCheck() {
+        final IptvHealthChecker checker = IptvHealthChecker.instance();
+        if (checker.isRunning()) {
+            checker.cancel();
+            toast(getString(R.string.iptv_check_stopping));
+            return;
+        }
+        List<IptvChannel> work = new ArrayList<>();
+        for (IptvChannel c : mRows) {
+            if (mMarked.isEmpty() || mMarked.contains(c.key())) {
+                work.add(c);
+            }
+        }
+        if (work.isEmpty()) {
+            return;
+        }
+        IptvOptions options = mPrefs.load();
+        boolean started = checker.start(work, new HttpIptvFetcher(options.withTimeouts(6_000, 12_000)), options.userAgent,
+                IptvHealth.instance(this), 4, new IptvHealthChecker.Listener() {
+                    @Override
+                    public void onProgress(int done, int total, int ok, int bad) {
+                        mHandler.post(() -> {
+                            if (isFinishing()) {
+                                return;
+                            }
+                            mAdapter.notifyDataSetChanged(); // the dots appear while the check runs
+                            long now = System.currentTimeMillis();
+                            if (now - mLastCheckToast >= 5000) {
+                                mLastCheckToast = now;
+                                toast(getString(R.string.iptv_check_progress, done, total, ok, bad));
+                            }
+                        });
+                    }
+
+                    @Override
+                    public void onFinished(int ok, int bad, boolean cancelled) {
+                        mHandler.post(() -> {
+                            if (isFinishing()) {
+                                return;
+                            }
+                            mAdapter.notifyDataSetChanged();
+                            toast(getString(R.string.iptv_check_done, ok, bad));
+                        });
+                    }
+                });
+        if (started) {
+            toast(getString(R.string.iptv_check_started, work.size()));
+        }
+    }
+
+    /** Marks the channels of the list that did not work, so that one action (delete, move...) can take them all. */
+    private void markBadChannels() {
+        IptvHealth health = IptvHealth.instance(this);
+        int n = 0;
+        for (IptvChannel c : mRows) {
+            if (health.status(c.key()) == IptvHealth.BAD && mMarked.add(c.key())) {
+                n++;
+            }
+        }
+        toast(getString(R.string.iptv_menu_marked_bad, n));
+        refresh();
     }
 
     private void toast(String message) {
@@ -1002,16 +1077,17 @@ public class IptvManagerActivity extends Activity {
         }
         final List<String> labels = new ArrayList<>();
         final List<Runnable> actions = new ArrayList<>();
+        final List<String> ids = new ArrayList<>();
         final boolean multi = !mMarked.isEmpty();
 
         if (channel != null) {
             if (mMultiMode) {
-                add(labels, actions, getString(R.string.iptv_mgr_multi_end), () -> {
+                put(ids, labels, actions, "multi", getString(R.string.iptv_mgr_multi_end), () -> {
                     mMultiMode = false;
                     refresh();
                 });
             } else {
-                add(labels, actions, getString(R.string.iptv_mgr_multi), () -> {
+                put(ids, labels, actions, "multi", getString(R.string.iptv_mgr_multi), () -> {
                     mMultiMode = true;
                     if (!mMarked.contains(channel.key())) {
                         mMarked.add(channel.key());
@@ -1025,80 +1101,311 @@ public class IptvManagerActivity extends Activity {
             boolean allSkipped = mSkippedSet.containsAll(urls);
 
             if (!multi) {
-                add(labels, actions, getString(R.string.iptv_play), this::playCurrent);
+                put(ids, labels, actions, "play", getString(R.string.iptv_play), this::playCurrent);
                 if (miniEnabled()) {
-                    add(labels, actions, getString(R.string.iptv_mini_play_full), () -> playCurrent(true));
+                    put(ids, labels, actions, "play_full", getString(R.string.iptv_mini_play_full), () -> playCurrent(true));
                 }
             }
-            add(labels, actions, getString(allFav ? R.string.iptv_remove_favorite : R.string.iptv_add_favorite), this::toggleFavorite);
-            add(labels, actions, getString(R.string.iptv_mgr_to_bundle), () -> pickBundle(false));
+            put(ids, labels, actions, "fav", getString(allFav ? R.string.iptv_remove_favorite : R.string.iptv_add_favorite), this::toggleFavorite);
+            put(ids, labels, actions, "to_bundle", getString(R.string.iptv_mgr_to_bundle), () -> pickBundle(false));
             if (mScopes.get(mScopeIdx).equals(S_FAV) || currentBundleId() != null) {
-                add(labels, actions, getString(R.string.iptv_mgr_move_to_bundle), () -> pickBundle(true));
+                put(ids, labels, actions, "move_to_bundle", getString(R.string.iptv_mgr_move_to_bundle), () -> pickBundle(true));
             }
             if (!multi) {
-                add(labels, actions, getString(R.string.iptv_mgr_fixed_number), this::askFixedNumber);
+                put(ids, labels, actions, "fixed", getString(R.string.iptv_mgr_fixed_number), this::askFixedNumber);
             }
             if (!Collections.disjoint(mFixedSet, urls)) {
-                add(labels, actions, getString(R.string.iptv_mgr_fixed_clear), this::clearFixedNumbers);
+                put(ids, labels, actions, "fixed_clear", getString(R.string.iptv_mgr_fixed_clear), this::clearFixedNumbers);
             }
-            add(labels, actions, getString(allLocked ? R.string.iptv_mgr_unlock : R.string.iptv_mgr_lock), this::toggleLock);
-            add(labels, actions, getString(allSkipped ? R.string.iptv_mgr_unskip : R.string.iptv_mgr_skip), this::toggleSkip);
-            add(labels, actions, getString(mMarked.contains(channel.key()) ? R.string.iptv_mgr_unmark : R.string.iptv_mgr_mark), this::toggleMark);
+            put(ids, labels, actions, "lock", getString(allLocked ? R.string.iptv_mgr_unlock : R.string.iptv_mgr_lock), this::toggleLock);
+            put(ids, labels, actions, "skip", getString(allSkipped ? R.string.iptv_mgr_unskip : R.string.iptv_mgr_skip), this::toggleSkip);
+            put(ids, labels, actions, "mark", getString(mMarked.contains(channel.key()) ? R.string.iptv_mgr_unmark : R.string.iptv_mgr_mark), this::toggleMark);
             if (multi) {
-                add(labels, actions, getString(R.string.iptv_mgr_move_marked_top), () -> moveMarked(IptvPlaylist.MOVE_TOP));
-                add(labels, actions, getString(R.string.iptv_mgr_move_marked_bottom), () -> moveMarked(IptvPlaylist.MOVE_BOTTOM));
-                add(labels, actions, getString(R.string.iptv_mgr_move_marked_here), () -> moveMarked(IptvPlaylist.MOVE_BEFORE));
+                put(ids, labels, actions, "mm_top", getString(R.string.iptv_mgr_move_marked_top), () -> moveMarked(IptvPlaylist.MOVE_TOP));
+                put(ids, labels, actions, "mm_bottom", getString(R.string.iptv_mgr_move_marked_bottom), () -> moveMarked(IptvPlaylist.MOVE_BOTTOM));
+                put(ids, labels, actions, "mm_here", getString(R.string.iptv_mgr_move_marked_here), () -> moveMarked(IptvPlaylist.MOVE_BEFORE));
             } else {
-                add(labels, actions, getString(R.string.iptv_mgr_move), this::startMove);
-                add(labels, actions, getString(R.string.iptv_mgr_move_to), this::askMoveToNumber);
-                add(labels, actions, getString(R.string.iptv_mgr_rename), this::renameCurrent);
+                put(ids, labels, actions, "move", getString(R.string.iptv_mgr_move), this::startMove);
+                put(ids, labels, actions, "move_to", getString(R.string.iptv_mgr_move_to), this::askMoveToNumber);
+                put(ids, labels, actions, "rename", getString(R.string.iptv_mgr_rename), this::renameCurrent);
             }
-            add(labels, actions, getString(R.string.iptv_mgr_delete), this::deleteTargets);
+            put(ids, labels, actions, "delete", getString(R.string.iptv_mgr_delete), this::deleteTargets);
         }
         if (!mRows.isEmpty()) {
-            add(labels, actions, getString(mMarked.size() >= mRows.size() ? R.string.iptv_mgr_unmark_all : R.string.iptv_mgr_mark_all),
+            put(ids, labels, actions, "mark_all", getString(mMarked.size() >= mRows.size() ? R.string.iptv_mgr_unmark_all : R.string.iptv_mgr_mark_all),
                     () -> markAll(mMarked.size() < mRows.size()));
-            add(labels, actions, getString(R.string.iptv_mgr_sort), this::sortAz);
+            put(ids, labels, actions, "sort", getString(R.string.iptv_mgr_sort), this::sortAz);
+            IptvHealthChecker checker = IptvHealthChecker.instance();
+            put(ids, labels, actions, "check", checker.isRunning()
+                    ? getString(R.string.iptv_check_stop, checker.done(), checker.total())
+                    : getString(R.string.iptv_menu_check, multi ? mMarked.size() : mRows.size()), this::startCheck);
+            put(ids, labels, actions, "mark_bad", getString(R.string.iptv_menu_mark_bad), this::markBadChannels);
+            put(ids, labels, actions, "check_clear", getString(R.string.iptv_menu_check_clear), () -> {
+                IptvHealth.instance(this).clear();
+                refresh();
+            });
         }
         if (mMini.hasChannel()) {
-            add(labels, actions, getString(R.string.iptv_mini_expand), this::expandMini);
-            add(labels, actions, getString(R.string.iptv_mini_close), () -> {
+            put(ids, labels, actions, "mini_expand", getString(R.string.iptv_mini_expand), this::expandMini);
+            put(ids, labels, actions, "mini_close", getString(R.string.iptv_mini_close), () -> {
                 mMini.close();
                 setMiniFocus(false);
                 refresh();
             });
         }
+        put(ids, labels, actions, "bundles", getString(R.string.iptv_mgr_bundles), this::showBundleManager);
+        put(ids, labels, actions, "search", getString(R.string.iptv_section_search), this::askSearch);
+        if (!mFilter.isEmpty()) {
+            put(ids, labels, actions, "clear_search", getString(R.string.iptv_mgr_clear_search), () -> {
+                mFilter = "";
+                reload();
+            });
+        }
+        put(ids, labels, actions, "settings", getString(R.string.iptv_menu_settings), () -> showIptvSettings(0));
+
+        finishMenu(channel == null ? getString(R.string.iptv_mgr_title) : displayName(channel), ids, labels, actions);
+    }
+
+    // ------------------------------------------------------------------ menu order / hidden options
+
+    /** Default order: the options used all the time first, then organizing, selection, player, tools. */
+    private static final String[] MENU_DEFAULT_ORDER = {
+            "play", "play_full", "fav", "rename", "move", "move_to", "delete",
+            "multi", "mark", "mark_all", "mm_top", "mm_bottom", "mm_here",
+            "to_bundle", "move_to_bundle", "bundles", "lock", "skip", "fixed", "fixed_clear",
+            "sort", "check", "mark_bad", "check_clear", "search", "clear_search",
+            "mini_expand", "mini_close", "settings"};
+    /** Nothing is hidden at first: the user decides which options to hide (they stay reachable under "More options"). */
+    private static final String[] MENU_DEFAULT_HIDDEN = {};
+
+    private static void put(List<String> ids, List<String> labels, List<Runnable> actions, String id, String label, Runnable action) {
+        ids.add(id);
+        labels.add(label);
+        actions.add(action);
+    }
+
+    private List<String> menuOrder() {
+        List<String> order = new ArrayList<>();
+        String saved = mPrefs.getMenuOrder();
+        if (saved != null) {
+            for (String id : saved.split(",")) {
+                if (!id.isEmpty() && Arrays.asList(MENU_DEFAULT_ORDER).contains(id) && !order.contains(id)) {
+                    order.add(id);
+                }
+            }
+        }
+        for (String id : MENU_DEFAULT_ORDER) { // new options (or a first run) go in their default place
+            if (!order.contains(id)) {
+                int at = order.size();
+                int def = Arrays.asList(MENU_DEFAULT_ORDER).indexOf(id);
+                for (int i = def + 1; i < MENU_DEFAULT_ORDER.length; i++) {
+                    int pos = order.indexOf(MENU_DEFAULT_ORDER[i]);
+                    if (pos >= 0 && pos < at) {
+                        at = pos;
+                    }
+                }
+                order.add(at, id);
+            }
+        }
+        return order;
+    }
+
+    private java.util.Set<String> menuHidden() {
+        String saved = mPrefs.getMenuHidden();
+        java.util.Set<String> hidden = new java.util.HashSet<>();
+        if (saved == null) {
+            hidden.addAll(Arrays.asList(MENU_DEFAULT_HIDDEN));
+        } else {
+            hidden.addAll(Arrays.asList(saved.split(",")));
+        }
+        return hidden;
+    }
+
+    private void saveMenu(List<String> order, java.util.Set<String> hidden) {
+        mPrefs.setMenuOrder(android.text.TextUtils.join(",", order));
+        mPrefs.setMenuHidden(android.text.TextUtils.join(",", hidden));
+    }
+
+    /** Opens the menu: options in the user's order, the hidden ones under "More options", "Arrange" at the very bottom. */
+    private void finishMenu(String title, List<String> ids, List<String> labels, List<Runnable> actions) {
+        List<String> order = menuOrder();
+        java.util.Set<String> hidden = menuHidden();
+        List<String> shownLabels = new ArrayList<>();
+        List<Runnable> shownActions = new ArrayList<>();
+        final List<String> moreLabels = new ArrayList<>();
+        final List<Runnable> moreActions = new ArrayList<>();
+        for (String id : order) {
+            for (int i = 0; i < ids.size(); i++) {
+                if (ids.get(i).equals(id)) {
+                    if (hidden.contains(id)) {
+                        add(moreLabels, moreActions, labels.get(i), actions.get(i));
+                    } else {
+                        add(shownLabels, shownActions, labels.get(i), actions.get(i));
+                    }
+                }
+            }
+        }
+        if (!moreLabels.isEmpty()) {
+            final String moreTitle = title;
+            add(shownLabels, shownActions, getString(R.string.iptv_menu_more) + "  (" + moreLabels.size() + ")",
+                    () -> openMenuOverlay(moreTitle, moreLabels, moreActions));
+        }
+        add(shownLabels, shownActions, getString(R.string.iptv_menu_customize), () -> showMenuCustomize(0));
+        openMenuOverlay(title, shownLabels, shownActions);
+    }
+
+    private String menuName(String id) {
+        switch (id) {
+            case "play": return getString(R.string.iptv_play);
+            case "play_full": return getString(R.string.iptv_mini_play_full);
+            case "fav": return getString(R.string.iptv_add_favorite);
+            case "rename": return getString(R.string.iptv_mgr_rename);
+            case "move": return getString(R.string.iptv_mgr_move);
+            case "move_to": return getString(R.string.iptv_mgr_move_to);
+            case "delete": return getString(R.string.iptv_mgr_delete);
+            case "multi": return getString(R.string.iptv_mgr_multi);
+            case "mark": return getString(R.string.iptv_mgr_mark);
+            case "mark_all": return getString(R.string.iptv_mgr_mark_all);
+            case "mm_top": return getString(R.string.iptv_mgr_move_marked_top);
+            case "mm_bottom": return getString(R.string.iptv_mgr_move_marked_bottom);
+            case "mm_here": return getString(R.string.iptv_mgr_move_marked_here);
+            case "to_bundle": return getString(R.string.iptv_mgr_to_bundle);
+            case "move_to_bundle": return getString(R.string.iptv_mgr_move_to_bundle);
+            case "bundles": return getString(R.string.iptv_mgr_bundles);
+            case "lock": return getString(R.string.iptv_mgr_lock);
+            case "skip": return getString(R.string.iptv_mgr_skip);
+            case "fixed": return getString(R.string.iptv_mgr_fixed_number);
+            case "fixed_clear": return getString(R.string.iptv_mgr_fixed_clear);
+            case "sort": return getString(R.string.iptv_mgr_sort);
+            case "check": return getString(R.string.iptv_menu_check_name);
+            case "mark_bad": return getString(R.string.iptv_menu_mark_bad);
+            case "check_clear": return getString(R.string.iptv_menu_check_clear);
+            case "settings": return getString(R.string.iptv_menu_settings);
+            case "search": return getString(R.string.iptv_section_search);
+            case "clear_search": return getString(R.string.iptv_mgr_clear_search);
+            case "mini_expand": return getString(R.string.iptv_mini_expand);
+            case "mini_close": return getString(R.string.iptv_mini_close);
+            default: return id;
+        }
+    }
+
+    /** "Arrange options": every option with its state; OK on a line opens show/hide and move up/down. */
+    private void showMenuCustomize(final int selected) {
+        final List<String> order = menuOrder();
+        final java.util.Set<String> hidden = menuHidden();
+        final List<String> labels = new ArrayList<>();
+        final List<Runnable> actions = new ArrayList<>();
+        for (int i = 0; i < order.size(); i++) {
+            final int index = i;
+            final String id = order.get(i);
+            boolean isHidden = hidden.contains(id);
+            add(labels, actions, (isHidden ? "✖  " : "✔  ") + menuName(id) + (isHidden ? "   · " + getString(R.string.iptv_menu_hidden) : ""),
+                    () -> showMenuItemOptions(index));
+        }
+        add(labels, actions, getString(R.string.iptv_menu_reset), () -> {
+            mPrefs.setMenuOrder(null);
+            mPrefs.setMenuHidden(null);
+            showMenuCustomize(0);
+        });
+        openMenuOverlay(getString(R.string.iptv_menu_customize_title), labels, actions);
+        if (selected > 0) {
+            moveMenuSelection(selected);
+        }
+    }
+
+    private void showMenuItemOptions(final int index) {
+        final List<String> order = menuOrder();
+        final java.util.Set<String> hidden = menuHidden();
+        final String id = order.get(index);
+        final boolean isHidden = hidden.contains(id);
+        final List<String> labels = new ArrayList<>();
+        final List<Runnable> actions = new ArrayList<>();
+        add(labels, actions, getString(isHidden ? R.string.iptv_menu_show : R.string.iptv_menu_hide), () -> {
+            if (isHidden) {
+                hidden.remove(id);
+            } else {
+                hidden.add(id);
+            }
+            saveMenu(order, hidden);
+            showMenuCustomize(index);
+        });
+        if (index > 0) {
+            add(labels, actions, getString(R.string.iptv_menu_up), () -> {
+                Collections.swap(order, index, index - 1);
+                saveMenu(order, hidden);
+                showMenuCustomize(index - 1);
+            });
+        }
+        if (index < order.size() - 1) {
+            add(labels, actions, getString(R.string.iptv_menu_down), () -> {
+                Collections.swap(order, index, index + 1);
+                saveMenu(order, hidden);
+                showMenuCustomize(index + 1);
+            });
+        }
+        add(labels, actions, getString(R.string.iptv_menu_back), () -> showMenuCustomize(index));
+        openMenuOverlay(menuName(id), labels, actions);
+    }
+
+    // ------------------------------------------------------------------ IPTV settings section
+
+    private String healthStyleName(int style) {
+        return getString(style == IptvPrefs.HEALTH_DOT ? R.string.iptv_set_style_dot
+                : style == IptvPrefs.HEALTH_BOTH ? R.string.iptv_set_style_both : R.string.iptv_set_style_name);
+    }
+
+    private String onOff(boolean on) {
+        return on ? getString(R.string.iptv_set_on) : getString(R.string.iptv_set_off);
+    }
+
+    /** One place for the IPTV settings of the manager and the player; a line changes its value, then the screen is shown again. */
+    private void showIptvSettings(final int selected) {
+        final List<String> labels = new ArrayList<>();
+        final List<Runnable> actions = new ArrayList<>();
+        final int[] n = {0};
+        add(labels, actions, getString(R.string.iptv_set_dot) + ": " + healthStyleName(mPrefs.getHealthStyle()), () -> {
+            mPrefs.setHealthStyle((mPrefs.getHealthStyle() + 1) % 3);
+            refresh();
+            showIptvSettings(0);
+        });
+        add(labels, actions, getString(R.string.iptv_set_hide_prefix) + ": " + onOff(mPrefs.isHidePrefix()), () -> {
+            mPrefs.setHidePrefix(!mPrefs.isHidePrefix());
+            refresh();
+            showIptvSettings(1);
+        });
         if (mPrefs.getPlayerMode() == IptvPrefs.PLAYER_INTERNAL) {
-            add(labels, actions, getString(mPrefs.isMiniPlayer() ? R.string.iptv_mini_turn_off : R.string.iptv_mini_turn_on), () -> {
+            add(labels, actions, getString(R.string.iptv_set_mini) + ": " + onOff(mPrefs.isMiniPlayer()), () -> {
                 boolean on = !mPrefs.isMiniPlayer();
                 mPrefs.setMiniPlayer(on);
                 if (!on) {
                     mMini.close();
                 }
                 refresh();
+                showIptvSettings(2);
             });
         }
         if (miniEnabled()) {
-            add(labels, actions, getString(mPrefs.isMiniSelect() ? R.string.iptv_mini_sel_turn_off : R.string.iptv_mini_sel_turn_on), () -> {
+            add(labels, actions, getString(R.string.iptv_set_mini_sel) + ": " + onOff(mPrefs.isMiniSelect()), () -> {
                 mPrefs.setMiniSelect(!mPrefs.isMiniSelect());
                 setMiniFocus(false);
                 refresh();
+                showIptvSettings(3);
             });
         }
         if (mPrefs.getPlayerMode() == IptvPrefs.PLAYER_INTERNAL) {
-            add(labels, actions, getString(R.string.iptv_panel_settings), () -> showPanelSettings(0));
+            add(labels, actions, getString(R.string.iptv_panel_settings) + "…", () -> showPanelSettings(0));
         }
-        add(labels, actions, getString(R.string.iptv_mgr_bundles), this::showBundleManager);
-        add(labels, actions, getString(R.string.iptv_section_search), this::askSearch);
-        if (!mFilter.isEmpty()) {
-            add(labels, actions, getString(R.string.iptv_mgr_clear_search), () -> {
-                mFilter = "";
-                reload();
-            });
-        }
+        add(labels, actions, getString(R.string.iptv_menu_customize_title) + "…", () -> showMenuCustomize(0));
+        add(labels, actions, getString(R.string.iptv_menu_check_clear), () -> {
+            IptvHealth.instance(this).clear();
+            refresh();
+            toast(getString(R.string.iptv_set_done));
+        });
         add(labels, actions, getString(R.string.iptv_mgr_pin_change), () -> IptvPin.change(this));
-
-        openMenuOverlay(channel == null ? getString(R.string.iptv_mgr_title) : displayName(channel), labels, actions);
+        openMenuOverlay(getString(R.string.iptv_menu_settings_title), labels, actions);
+        if (selected > 0) {
+            moveMenuSelection(selected);
+        }
     }
 
     private static final int[] PANEL_OPACITY_STEPS = {100, 90, 80, 70, 60, 50, 40, 30};
@@ -1901,14 +2208,29 @@ public class IptvManagerActivity extends Activity {
             h.number.setTextColor(mFixedSet.contains(key) ? C_GOLD : C_DIM); // gold = fixed number chosen by the user
             String label = displayName(c);
             int health = IptvHealth.instance(IptvManagerActivity.this).status(key);
-            if (health == IptvHealth.BAD) {
-                label = "\uD83D\uDD34 " + label;
-            }
             if (mMini.hasChannel() && key.equals(mMini.channel().key())) {
                 label = "\u25B6 " + label; // playing in the small window
             }
-            h.name.setText(label);
-            h.name.setTextColor(mSkippedSet.contains(key) ? C_DIM : Color.WHITE);
+            // check result (style chosen in the IPTV settings): name colour, coloured dot, or both
+            // green = works, red = does not work, nothing = not checked
+            int nameColor = Color.WHITE;
+            if (health == IptvHealth.OK || health == IptvHealth.BAD) {
+                boolean ok = health == IptvHealth.OK;
+                int style = mPrefs.getHealthStyle();
+                if (style != IptvPrefs.HEALTH_DOT) {
+                    nameColor = ok ? C_OK_TEXT : C_BAD_TEXT;
+                }
+                if (style != IptvPrefs.HEALTH_NAME) {
+                    android.text.SpannableString sp = new android.text.SpannableString("\u25CF " + label);
+                    sp.setSpan(new android.text.style.ForegroundColorSpan(ok ? C_OK : C_BAD), 0, 1, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                    h.name.setText(sp);
+                } else {
+                    h.name.setText(label);
+                }
+            } else {
+                h.name.setText(label);
+            }
+            h.name.setTextColor(mSkippedSet.contains(key) ? C_DIM : nameColor);
             h.fav.setText(mFavSet.contains(key) ? "\u2605" : "");
             h.lock.setText(mLockedSet.contains(key) ? "\uD83D\uDD12" : "");
             h.skip.setText(mSkippedSet.contains(key) ? "\u23ED" : "");

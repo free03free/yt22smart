@@ -103,6 +103,19 @@ public final class IptvPrefs {
     public int getPanelWidth() { return mPrefs.getInt("panelWidth", 24); }
     public void setPanelWidth(int pct) { mPrefs.edit().putInt("panelWidth", Math.max(20, Math.min(60, pct))).apply(); }
     /** Channel name size in sp, 12..30. */
+    /** Order / hidden options of the channel menu in the manager (null = defaults). */
+    public String getMenuOrder() { return mPrefs.getString("menuOrder", null); }
+    public void setMenuOrder(String ids) { SharedPreferences.Editor e = mPrefs.edit(); if (ids == null) e.remove("menuOrder"); else e.putString("menuOrder", ids); e.apply(); }
+    public String getMenuHidden() { return mPrefs.getString("menuHidden", null); }
+    public void setMenuHidden(String ids) { SharedPreferences.Editor e = mPrefs.edit(); if (ids == null) e.remove("menuHidden"); else e.putString("menuHidden", ids); e.apply(); }
+
+    public static final int HEALTH_NAME = 0;
+    public static final int HEALTH_DOT = 1;
+    public static final int HEALTH_BOTH = 2;
+    /** How a check result is shown in the manager list: name colour only, dot only, or both. */
+    public int getHealthStyle() { return Math.max(0, Math.min(2, mPrefs.getInt("healthStyle", HEALTH_NAME))); }
+    public void setHealthStyle(int style) { mPrefs.edit().putInt("healthStyle", style).apply(); }
+
     public int getPanelFont() { return mPrefs.getInt("panelFont", 14); }
     public void setPanelFont(int sp) { mPrefs.edit().putInt("panelFont", Math.max(12, Math.min(30, sp))).apply(); }
 
@@ -141,6 +154,16 @@ public final class IptvPrefs {
         }
         e.apply();
     }
+
+    /** Phone connection: PIN random each time (default) or fixed; port automatic (0) or fixed; PIN shared with the channel lock. */
+    public boolean isReceivePinFixed() { return mPrefs.getBoolean("receivePinFixed", false); }
+    public void setReceivePinFixed(boolean on) { mPrefs.edit().putBoolean("receivePinFixed", on).apply(); }
+    public String getReceivePin() { return mPrefs.getString("receivePin", ""); }
+    public void setReceivePin(String pin) { mPrefs.edit().putString("receivePin", pin == null ? "" : pin.trim()).apply(); }
+    public boolean isReceivePinUnified() { return mPrefs.getBoolean("receivePinUnified", false); }
+    public void setReceivePinUnified(boolean on) { mPrefs.edit().putBoolean("receivePinUnified", on).apply(); }
+    public int getReceivePort() { return mPrefs.getInt("receivePort", 0); }
+    public void setReceivePort(int port) { mPrefs.edit().putInt("receivePort", port < 1024 || port > 65535 ? 0 : port).apply(); }
 
     /** Largest upload accepted from the phone, in MB. 0 = no limit. */
     public int getReceiveMaxMb() { return mPrefs.getInt("receiveMaxMb", 200); }

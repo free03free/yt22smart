@@ -384,18 +384,113 @@ public class IptvSettingsPresenter extends BasePresenter<Void> {
 
     private static IptvWebReceiver sReceiver;
 
+    /** @return the PIN that must be used for the phone connection, or null for a random one */
+    private String wantedReceivePin() {
+        if (mPrefs.isReceivePinUnified()) {
+            String lock = IptvUserData.instance(getContext()).getPin();
+            if (lock != null && !lock.isEmpty()) {
+                return lock;
+            }
+        }
+        if (mPrefs.isReceivePinFixed() && !mPrefs.getReceivePin().isEmpty()) {
+            return mPrefs.getReceivePin();
+        }
+        return null;
+    }
+
+    /** Settings of the connection with the phone: PIN (random / fixed / the same as the channel lock) and port. */
+    private void showReceiverSettings() {
+        final Context ctx = getContext();
+        AppDialogPresenter d = AppDialogPresenter.instance(ctx);
+
+        List<OptionItem> modes = new ArrayList<>();
+        modes.add(UiOptionItem.from(ctx.getString(R.string.iptv_receive_pin_random),
+                o -> mPrefs.setReceivePinFixed(false), !mPrefs.isReceivePinFixed()));
+        modes.add(UiOptionItem.from(ctx.getString(R.string.iptv_receive_pin_fixed),
+                o -> {
+                    mPrefs.setReceivePinFixed(true);
+                    if (mPrefs.getReceivePin().isEmpty()) {
+                        postLater(this::askReceivePin);
+                    }
+                }, mPrefs.isReceivePinFixed()));
+        d.appendRadioCategory(ctx.getString(R.string.iptv_receive_pin_mode), modes);
+
+        d.appendSingleButton(UiOptionItem.from(ctx.getString(R.string.iptv_receive_pin_set,
+                mPrefs.getReceivePin().isEmpty() ? "-" : mPrefs.getReceivePin()), option -> {
+            AppDialogPresenter.instance(ctx).closeDialog();
+            postLater(this::askReceivePin);
+        }));
+        d.appendSingleSwitch(UiOptionItem.from(ctx.getString(R.string.iptv_receive_pin_unified),
+                ctx.getString(R.string.iptv_receive_pin_unified_desc),
+                option -> mPrefs.setReceivePinUnified(option.isSelected()), mPrefs.isReceivePinUnified()));
+
+        List<OptionItem> ports = new ArrayList<>();
+        ports.add(UiOptionItem.from(ctx.getString(R.string.iptv_receive_port_auto),
+                o -> mPrefs.setReceivePort(0), mPrefs.getReceivePort() == 0));
+        ports.add(UiOptionItem.from(ctx.getString(R.string.iptv_receive_port_fixed,
+                mPrefs.getReceivePort() == 0 ? "-" : String.valueOf(mPrefs.getReceivePort())),
+                o -> postLater(this::askReceivePort), mPrefs.getReceivePort() != 0));
+        d.appendRadioCategory(ctx.getString(R.string.iptv_receive_port_mode), ports);
+        d.showDialog(ctx.getString(R.string.iptv_receive_settings));
+    }
+
+    private void askReceivePin() {
+        SimpleEditDialog.show(getContext(), getContext().getString(R.string.iptv_receive_pin_enter),
+                getContext().getString(R.string.iptv_receive_pin_hint), mPrefs.getReceivePin(), value -> {
+                    String v = value == null ? "" : value.trim();
+                    if (!v.matches("\\d{4,8}")) {
+                        MessageHelpers.showLongMessage(getContext(), getContext().getString(R.string.iptv_receive_pin_bad));
+                        return false;
+                    }
+                    mPrefs.setReceivePin(v);
+                    mPrefs.setReceivePinFixed(true);
+                    postLater(this::showReceiverSettings);
+                    return true;
+                });
+    }
+
+    private void askReceivePort() {
+        SimpleEditDialog.show(getContext(), getContext().getString(R.string.iptv_receive_port_enter),
+                getContext().getString(R.string.iptv_receive_port_hint),
+                mPrefs.getReceivePort() == 0 ? "8085" : String.valueOf(mPrefs.getReceivePort()), value -> {
+                    int port;
+                    try {
+                        port = Integer.parseInt(value.trim());
+                    } catch (NumberFormatException e) {
+                        port = 0;
+                    }
+                    if (port < 1024 || port > 65535) {
+                        MessageHelpers.showLongMessage(getContext(), getContext().getString(R.string.iptv_receive_port_bad));
+                        return false;
+                    }
+                    mPrefs.setReceivePort(port);
+                    postLater(this::showReceiverSettings);
+                    return true;
+                });
+    }
+
     private void showReceiver() {
         AppDialogPresenter dialog = AppDialogPresenter.instance(getContext());
+        // the PIN: shared with the channel lock, or the one chosen here, or a random one; same for the port
+        String wantedPin = wantedReceivePin();
+        int wantedPort = mPrefs.getReceivePort();
+        if (sReceiver != null && sReceiver.isRunning()
+                && ((wantedPin != null && !wantedPin.equals(sReceiver.pin())) || (wantedPort > 0 && wantedPort != sReceiver.port()))) {
+            sReceiver.stop(); // the settings changed: start again with them
+            sReceiver = null;
+        }
         if (sReceiver == null || !sReceiver.isRunning()) {
-            String pin = String.format(java.util.Locale.US, "%04d", new java.security.SecureRandom().nextInt(10000));
+            String pin = wantedPin != null ? wantedPin
+                    : String.format(java.util.Locale.US, "%04d", new java.security.SecureRandom().nextInt(10000));
             final Context app = getContext().getApplicationContext();
             sReceiver = new IptvWebReceiver((text, files) -> onPhoneData(app, text, files), pin,
-                    mPrefs.getReceiveMaxMb() * 1024L * 1024L);
+                    mPrefs.getReceiveMaxMb() * 1024L * 1024L, wantedPort);
             try {
                 sReceiver.start();
             } catch (java.io.IOException e) {
                 sReceiver = null;
-                MessageHelpers.showLongMessage(getContext(), getContext().getString(R.string.iptv_receive_failed));
+                MessageHelpers.showLongMessage(getContext(), getContext().getString(wantedPort > 0
+                        ? R.string.iptv_receive_port_busy : R.string.iptv_receive_failed));
                 return;
             }
         }
@@ -411,6 +506,10 @@ public class IptvSettingsPresenter extends BasePresenter<Void> {
         }
         lines.add(UiOptionItem.from("PIN: " + sReceiver.pin(), option -> { }));
         dialog.appendStringsCategory(getContext().getString(R.string.iptv_receive_steps), lines);
+        dialog.appendSingleButton(UiOptionItem.from(getContext().getString(R.string.iptv_receive_settings), option -> {
+            AppDialogPresenter.instance(getContext()).closeDialog();
+            postLater(this::showReceiverSettings);
+        }));
         dialog.appendSingleButton(UiOptionItem.from(getContext().getString(R.string.iptv_receive_stop), option -> {
             if (sReceiver != null) {
                 sReceiver.stop();

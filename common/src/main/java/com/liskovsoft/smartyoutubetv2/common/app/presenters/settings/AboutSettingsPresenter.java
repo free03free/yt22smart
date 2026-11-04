@@ -64,6 +64,65 @@ public class AboutSettingsPresenter extends BasePresenter<Void> {
         settingsPresenter.showDialog(mainTitle);
     }
 
+    // ------------------------------------------------------------------ downloaded apps / copies
+
+    private void appendDownloadedAppsButton(AppDialogPresenter settingsPresenter) {
+        List<DownloadedApks.Item> items = DownloadedApks.list(getContext());
+        String summary = items.isEmpty() ? getContext().getString(R.string.dl_apps_empty)
+                : getContext().getString(R.string.dl_apps_summary, items.size(),
+                android.text.format.Formatter.formatFileSize(getContext(), DownloadedApks.totalSize(items)));
+        settingsPresenter.appendSingleButton(UiOptionItem.from(getContext().getString(R.string.dl_apps_title), summary, option -> {
+            AppDialogPresenter.instance(getContext()).closeDialog();
+            new android.os.Handler(android.os.Looper.getMainLooper()).post(this::showDownloadedApps);
+        }));
+    }
+
+    private void showDownloadedApps() {
+        final Context ctx = getContext();
+        final List<DownloadedApks.Item> items = DownloadedApks.list(ctx);
+        AppDialogPresenter d = AppDialogPresenter.instance(ctx);
+        if (items.isEmpty()) {
+            d.appendStringsCategory(ctx.getString(R.string.dl_apps_title),
+                    java.util.Collections.singletonList(UiOptionItem.from(ctx.getString(R.string.dl_apps_empty))));
+        } else {
+            d.appendSingleButton(UiOptionItem.from(ctx.getString(R.string.dl_apps_clean_all, items.size(),
+                    android.text.format.Formatter.formatFileSize(ctx, DownloadedApks.totalSize(items))), option -> {
+                AppDialogPresenter.instance(ctx).closeDialog();
+                AppDialogUtil.showConfirmationDialog(ctx, ctx.getString(R.string.dl_apps_confirm, items.size()), () -> {
+                    int n = DownloadedApks.cleanAll(ctx);
+                    MessageHelpers.showMessage(ctx, ctx.getString(R.string.dl_apps_deleted, n));
+                });
+            }));
+            for (final DownloadedApks.Item item : items) {
+                String title = item.file.getName();
+                String desc = (item.info != null ? item.info + "  \u2022  " : "")
+                        + android.text.format.Formatter.formatFileSize(ctx, item.size) + "  \u2022  "
+                        + android.text.format.DateFormat.getMediumDateFormat(ctx).format(new java.util.Date(item.modified));
+                d.appendSingleButton(UiOptionItem.from(title, desc, option -> {
+                    AppDialogPresenter.instance(ctx).closeDialog();
+                    new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> showApkActions(item));
+                }));
+            }
+        }
+        d.showDialog(ctx.getString(R.string.dl_apps_title));
+    }
+
+    private void showApkActions(final DownloadedApks.Item item) {
+        final Context ctx = getContext();
+        AppDialogPresenter d = AppDialogPresenter.instance(ctx);
+        d.appendSingleButton(UiOptionItem.from(ctx.getString(R.string.dl_apps_install), option -> {
+            AppDialogPresenter.instance(ctx).closeDialog();
+            CustomUpdater.installFile(ctx, item.file);
+        }));
+        d.appendSingleButton(UiOptionItem.from(ctx.getString(R.string.dl_apps_delete), option -> {
+            DownloadedApks.delete(ctx, java.util.Collections.singletonList(item));
+            MessageHelpers.showMessage(ctx, ctx.getString(R.string.dl_apps_deleted, 1));
+            AppDialogPresenter.instance(ctx).closeDialog();
+            new android.os.Handler(android.os.Looper.getMainLooper()).post(this::showDownloadedApps);
+        }));
+        d.showDialog(item.file.getName());
+    }
+
     private void appendAutoUpdateSwitch(AppDialogPresenter settingsPresenter) {
         GeneralData generalData = GeneralData.instance(getContext());
         List<OptionItem> items = new ArrayList<>();

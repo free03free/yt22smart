@@ -581,6 +581,28 @@ public final class CustomUpdater {
         }
     }
 
+    /** Installs an APK file that is already on the device (no conflict dialog: Android itself refuses a wrong one). */
+    public static void installFile(Context context, File apk) {
+        try {
+            if (Build.VERSION.SDK_INT >= 26 && !context.getPackageManager().canRequestPackageInstalls()) {
+                MessageHelpers.showMessage(context, context.getString(R.string.custom_update_allow_install));
+                Intent settings = new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                        Uri.parse("package:" + context.getPackageName()));
+                settings.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                context.startActivity(settings);
+                return;
+            }
+            Uri uri = FileProvider.getUriForFile(context, context.getPackageName() + ".customupdate", apk);
+            Intent intent = new Intent(Intent.ACTION_VIEW);
+            intent.setDataAndType(uri, "application/vnd.android.package-archive");
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
+            context.startActivity(intent);
+        } catch (Exception e) {
+            Log.e(TAG, "Install failed: " + e);
+            MessageHelpers.showMessage(context, context.getString(R.string.update_error) + ": " + e.getMessage());
+        }
+    }
+
     private static void install(Context context, File apk, Activity activity, Release release) {
         int conflict = findConflict(context, apk);
         if (conflict != 0) {
