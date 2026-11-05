@@ -184,17 +184,44 @@ public final class IptvImporter {
     private void process(byte[] data, String name, int depth, String groupHint) {
         IptvFormat fmt = IptvFormat.detect(data, name);
         switch (fmt) {
-            case ZIP: case GZIP: case TAR: case RAR: case SEVENZ: case BZIP2: case XZ: case ZSTD:
+            case ZIP: {
+                String office = IptvDocumentText.officeText(data); // docx / xlsx / pptx / odt ...: read it as a document
+                if (office != null) {
+                    mResult.filesParsed++;
+                    processText(office, depth, groupHint);
+                    return;
+                }
+                processArchive(data, name, depth);
+                return;
+            }
+            case GZIP: case TAR: case RAR: case SEVENZ: case BZIP2: case XZ: case ZSTD:
             case UNIX_COMPRESS: case CPIO: case AR: case ARJ: case UNSUPPORTED_ARCHIVE:
                 processArchive(data, name, depth);
+                return;
+            case PDF:
+                mResult.filesParsed++;
+                processText(IptvDocumentText.pdfText(data), depth, groupHint);
+                return;
+            case RTF:
+                mResult.filesParsed++;
+                processText(IptvDocumentText.rtfToText(TextDecoderUtil.decode(data)), depth, groupHint);
                 return;
             case XMLTV:
                 mResult.messages.add("EPG guide ignored: " + name);
                 return;
-            case BINARY:
-                mResult.messages.add("Not a playlist: " + name);
-                mResult.failures++;
+            case BINARY: {
+                // any other file: look through its readable strings, keep only what is IPTV, ignore the rest
+                int before = mResult.playlist.size();
+                String strings = IptvDocumentText.strings(data);
+                if (IptvUrls.STREAM_URL.matcher(strings).find() || strings.contains("#EXTINF")) {
+                    mResult.filesParsed++;
+                    processText(strings, depth, groupHint);
+                }
+                if (mResult.playlist.size() == before) {
+                    mResult.messages.add("No IPTV data found in: " + name);
+                }
                 return;
+            }
             case HLS_STREAM:
                 if (IptvUrls.isStreamUrl(name)) {
                     addAll(listOf(new IptvChannel(IptvUrls.titleFromUrl(name), name)), groupHint);
@@ -219,8 +246,13 @@ public final class IptvImporter {
             case JSON:
                 processText(OtherFormatsParser.parseJson(text), text, depth, groupHint);
                 break;
-            default:
+            default: {
+                String t = text.trim();
+                if (t.startsWith("<")) {
+                    text = IptvDocumentText.markupToText(text); // a web page / xml: its text and its links
+                }
                 processText(text, depth, groupHint);
+            }
         }
     }
 

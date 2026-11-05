@@ -20,10 +20,13 @@ import java.util.zip.ZipInputStream;
  * {@link ExternalArchiveHandler}. All limits come from {@link IptvOptions} (0 = unlimited).
  */
 public final class IptvArchiveReader {
+    // only what can never hold a list: pictures, audio / video, fonts, programs and disk images. Documents, pages, scripts,
+    // databases and unknown files are opened and searched (see IptvDocumentText).
     private static final Set<String> SKIP_EXT = new HashSet<>(Arrays.asList(
-            "png", "jpg", "jpeg", "gif", "webp", "bmp", "ico", "svg", "mp4", "mkv", "avi", "mov", "ts", "mp3", "aac", "flac",
-            "apk", "exe", "dll", "so", "jar", "class", "pdf", "doc", "docx", "xls", "xlsx", "css", "js", "html", "htm",
-            "ttf", "otf", "woff", "woff2", "db", "sqlite", "bin", "dat", "iso"));
+            "png", "jpg", "jpeg", "gif", "webp", "bmp", "ico", "svg", "heic", "tif", "tiff", "psd",
+            "mp4", "mkv", "avi", "mov", "wmv", "flv", "webm", "ts", "mpg", "mpeg", "vob", "mp3", "aac", "flac", "wav", "ogg", "m4a", "wma",
+            "apk", "exe", "dll", "so", "jar", "class", "dex", "msi", "css",
+            "ttf", "otf", "woff", "woff2", "iso", "img"));
 
     public static final class Entry {
         public final String name;

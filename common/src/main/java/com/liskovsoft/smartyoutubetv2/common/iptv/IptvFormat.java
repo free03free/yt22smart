@@ -4,7 +4,7 @@ import java.util.Locale;
 
 /** Content sniffing: the real bytes win over the file extension. */
 public enum IptvFormat {
-    ZIP, GZIP, TAR, RAR, SEVENZ, BZIP2, XZ, ZSTD, UNIX_COMPRESS, CPIO, AR, ARJ, UNSUPPORTED_ARCHIVE, M3U, HLS_STREAM, PLS, XSPF, XMLTV, JSON, TEXT, BINARY;
+    ZIP, GZIP, TAR, RAR, SEVENZ, BZIP2, XZ, ZSTD, UNIX_COMPRESS, CPIO, AR, ARJ, UNSUPPORTED_ARCHIVE, M3U, HLS_STREAM, PLS, XSPF, XMLTV, JSON, PDF, RTF, TEXT, BINARY;
 
     public static IptvFormat detect(byte[] data, String nameHint) {
         if (data == null || data.length == 0) {
@@ -51,6 +51,13 @@ public enum IptvFormat {
         }
         if (n >= 262 && data[257] == 'u' && data[258] == 's' && data[259] == 't' && data[260] == 'a' && data[261] == 'r') {
             return TAR;
+        }
+
+        if (n >= 5 && data[0] == '%' && data[1] == 'P' && data[2] == 'D' && data[3] == 'F' && data[4] == '-') {
+            return PDF;
+        }
+        if (n >= 5 && data[0] == '{' && data[1] == '\\' && data[2] == 'r' && data[3] == 't' && data[4] == 'f') {
+            return RTF;
         }
 
         int headLen = Math.min(n, 8192);
