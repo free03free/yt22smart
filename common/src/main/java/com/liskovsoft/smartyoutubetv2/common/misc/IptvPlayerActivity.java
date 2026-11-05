@@ -50,6 +50,7 @@ import com.liskovsoft.smartyoutubetv2.common.R;
 import com.liskovsoft.smartyoutubetv2.common.iptv.HttpIptvFetcher;
 import com.liskovsoft.smartyoutubetv2.common.iptv.IptvAlternatives;
 import com.liskovsoft.smartyoutubetv2.common.iptv.IptvChannel;
+import com.liskovsoft.smartyoutubetv2.common.iptv.IptvHealth;
 import com.liskovsoft.smartyoutubetv2.common.iptv.IptvPrefs;
 import com.liskovsoft.smartyoutubetv2.common.iptv.IptvStore;
 import com.liskovsoft.smartyoutubetv2.common.iptv.IptvUserData;
@@ -308,12 +309,30 @@ public class IptvPlayerActivity extends Activity {
                 IptvChannel c = mQueue.get(position);
                 String name = c.name == null || c.name.trim().isEmpty() ? c.url : c.name;
                 float sp = IptvPrefs.instance(IptvPlayerActivity.this).getPanelFont();
-                int color = position == mIndex ? 0xFFFFC107 : Color.WHITE;
+                // check result, in the style chosen in the IPTV settings: green = works, red = does not work
+                IptvPrefs prefs = IptvPrefs.instance(IptvPlayerActivity.this);
+                int health = IptvHealth.instance(IptvPlayerActivity.this).status(c.key());
+                boolean checked = health == IptvHealth.OK || health == IptvHealth.BAD;
+                boolean ok = health == IptvHealth.OK;
+                int style = prefs.getHealthStyle();
+                int color = Color.WHITE;
+                if (position == mIndex) {
+                    color = 0xFFFFC107; // the channel that is playing
+                } else if (checked && style != IptvPrefs.HEALTH_DOT) {
+                    color = ok ? 0xFFA5E8B5 : 0xFFFF9A9A;
+                }
                 number.setText((position + 1) + ".");
                 number.setMinWidth(mNumberWidth);
                 number.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp);
                 number.setTextColor(color);
-                nameView.setText(name);
+                if (checked && style != IptvPrefs.HEALTH_NAME) {
+                    android.text.SpannableString spannable = new android.text.SpannableString("\u25CF " + name);
+                    spannable.setSpan(new android.text.style.ForegroundColorSpan(ok ? 0xFF2ECC71 : 0xFFFF5252), 0, 1,
+                            android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                    nameView.setText(spannable);
+                } else {
+                    nameView.setText(name);
+                }
                 nameView.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp);
                 nameView.setTextColor(color);
                 return row;

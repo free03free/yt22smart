@@ -259,7 +259,8 @@ public final class IptvImporter {
     }
 
     private void processText(String text, int depth, String groupHint) {
-        processText(TextListParser.parse(text), text, depth, groupHint);
+        String cleaned = IptvTextCleaner.clean(text); // unreadable web-page glyphs out, wrapped urls joined
+        processText(TextListParser.parse(cleaned), cleaned, depth, groupHint);
     }
 
     private void processText(List<IptvChannel> parsed, String rawText, int depth, String groupHint) {
@@ -308,11 +309,24 @@ public final class IptvImporter {
                 }
             }
         }
+        // a long text (web page, document) may hold several accounts: api urls and Host / Username / Password blocks
+        for (XtreamAccount a : XtreamAccount.parseAll(rawText)) {
+            boolean known = false;
+            for (XtreamAccount k : found) {
+                if (k.server.equalsIgnoreCase(a.server) && k.username.equals(a.username) && k.password.equals(a.password)) {
+                    known = true;
+                    break;
+                }
+            }
+            if (!known) {
+                found.add(a);
+            }
+        }
         List<IptvChannel> channels = parsed;
         if (!found.isEmpty()) {
             channels = new ArrayList<>();
             for (IptvChannel c : parsed) {
-                if (!pointsAtServerRoot(c.url, found)) {
+                if (!pointsAtServerRoot(c.url, found) && !isAccountApiUrl(c.url, found)) {
                     channels.add(c);
                 }
             }
@@ -470,6 +484,23 @@ public final class IptvImporter {
         }
         for (StalkerAccount a : portals) {
             if (u.equals(a.key())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** "http://host/get.php?username=U&password=P..." of an account that is fetched anyway (not a channel). */
+    private static boolean isAccountApiUrl(String url, List<XtreamAccount> accounts) {
+        if (url == null || !url.toLowerCase().contains(".php?")) {
+            return false;
+        }
+        XtreamAccount a = XtreamAccount.parse(url);
+        if (a == null) {
+            return false;
+        }
+        for (XtreamAccount k : accounts) {
+            if (k.server.equalsIgnoreCase(a.server) && k.username.equals(a.username)) {
                 return true;
             }
         }

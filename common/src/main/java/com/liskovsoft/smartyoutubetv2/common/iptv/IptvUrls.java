@@ -18,6 +18,40 @@ public final class IptvUrls {
         return s != null && STARTS_WITH_URL.matcher(s.trim()).find();
     }
 
+    private static final java.util.Set<String> SITE_HOSTS = new java.util.HashSet<>(java.util.Arrays.asList(
+            "t.me", "telegram.me", "wa.me", "facebook.com", "fb.com", "fb.me", "instagram.com", "twitter.com", "x.com", "linkedin.com",
+            "pinterest.com", "play.google.com", "apps.apple.com", "scribd.com", "slideshare.net", "tiktok.com"));
+
+    /**
+     * A web page address rather than a stream: a social / store / document site, or a bare domain name without any path
+     * ("https://www.example.com" or "http://panel.example:8080", the root of a server). Bare IP addresses are kept (some raw streams look like that).
+     */
+    public static boolean isSiteLink(String url) {
+        if (url == null) {
+            return false;
+        }
+        String host = hostOf(url).toLowerCase();
+        if (host.startsWith("www.")) {
+            host = host.substring(4);
+        }
+        for (String h : SITE_HOSTS) {
+            if (host.equals(h) || host.endsWith("." + h)) {
+                return true;
+            }
+        }
+        java.util.regex.Matcher m = Pattern.compile("(?i)^https?://[^/?#:]+(?::\\d{1,5})?(/)?$").matcher(url.trim());
+        return m.find() && !host.matches("\\d{1,3}(?:\\.\\d{1,3}){3}") && host.contains(".");
+    }
+
+    private static final java.util.Set<String> NON_IPTV_EXT = new java.util.HashSet<>(java.util.Arrays.asList(
+            "html", "htm", "xhtml", "pdf", "jpg", "jpeg", "png", "gif", "webp", "svg", "ico", "css", "js", "apk",
+            "doc", "docx", "xls", "xlsx", "ppt", "pptx"));
+
+    /** A web page, picture or document: never an IPTV channel or playlist. */
+    public static boolean isNonIptvResource(String url) {
+        return NON_IPTV_EXT.contains(extension(url));
+    }
+
     public static String stripTrailingJunk(String url) {
         int end = url.length();
         while (end > 0) {

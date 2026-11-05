@@ -99,6 +99,53 @@ public final class XtreamAccount {
         return null;
     }
 
+    /**
+     * Every Xtream account found in a long text (a web page, a document): api urls (also when wrapped over two lines),
+     * and "Host / Username / Password" blocks; a block without a Username line reuses the previous one.
+     */
+    public static java.util.List<XtreamAccount> parseAll(String text) {
+        java.util.Map<String, XtreamAccount> found = new java.util.LinkedHashMap<>();
+        String cleaned = IptvTextCleaner.clean(text);
+
+        Matcher urls = IptvUrls.STREAM_URL.matcher(cleaned);
+        while (urls.find()) {
+            String u = IptvUrls.stripTrailingJunk(urls.group());
+            String low = u.toLowerCase();
+            if (low.contains(".php?") || low.matches("(?s).*/(?:live|movie|series|timeshift)/[^/]+/[^/]+/[^/]+")) {
+                XtreamAccount a = parse(u);
+                if (a != null) {
+                    found.put(a.server.toLowerCase() + "|" + a.username + "|" + a.password, a);
+                }
+            }
+        }
+
+        String host = null, user = null, pass = null, lastUser = null;
+        for (String line : cleaned.split("\n")) {
+            Matcher h = LABEL_SERVER.matcher(line);
+            Matcher u = LABEL_USER.matcher(line);
+            Matcher w = LABEL_PASS.matcher(line);
+            if (h.find() && h.group(1).toLowerCase().matches("(?:https?://)?[a-z0-9.-]+(?::\\d{1,5})?(?:/.*)?") && looksLikeHost(h.group(1))) {
+                host = h.group(1);
+                user = null;
+                pass = null;
+            } else if (u.find()) {
+                user = u.group(1);
+                lastUser = user;
+            } else if (w.find()) {
+                pass = w.group(1);
+            }
+            String useUser = user != null ? user : lastUser;
+            if (host != null && useUser != null && pass != null) {
+                String server = host.toLowerCase().startsWith("http") ? host : "http://" + host;
+                XtreamAccount a = new XtreamAccount(origin(server), useUser, pass);
+                found.put(a.server.toLowerCase() + "|" + a.username + "|" + a.password, a);
+                host = null;
+                pass = null;
+            }
+        }
+        return new java.util.ArrayList<>(found.values());
+    }
+
     private static boolean looksLikeHost(String h) {
         String x = h.toLowerCase().replaceFirst("^https?://", "");
         return x.matches("[a-z0-9.-]+(:\\d{1,5})?(/.*)?") && (x.contains(".") || x.contains(":") || x.startsWith("localhost"));

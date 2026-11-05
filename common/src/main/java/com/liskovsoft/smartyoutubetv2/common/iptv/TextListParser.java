@@ -56,15 +56,14 @@ public final class TextListParser {
                 if (firstStart < 0) firstStart = m.start();
                 for (String part : IptvUrls.splitMulti(m.group())) {
                     String u = IptvUrls.stripTrailingJunk(part.trim());
-                    if (IptvUrls.isStreamUrl(u)) {
+                    if (IptvUrls.isStreamUrl(u) && !IptvUrls.isSiteLink(u) && !IptvUrls.isNonIptvResource(u)) {
                         urls.add(u);
                     }
                 }
             }
             if (urls.isEmpty()) {
-                if (t.length() <= 200) {
-                    pendingTitle = t;
-                }
+                // only the line right before a url can be its title, and only if it reads like a title
+                pendingTitle = looksLikeTitle(t) ? t : null;
                 continue;
             }
 
@@ -86,6 +85,23 @@ public final class TextListParser {
             }
         }
         return result;
+    }
+
+    private static final Pattern LABELLED = Pattern.compile("^[\\p{L}\\d _.-]{1,25}\\s*[:=\\uff1a]\\s*\\S.*$");
+    private static final Pattern NOISE_WORD = Pattern.compile(
+            "(?i)^(?:m3u8?|m3u_plus|ts|host|server|username|user|password|pass|link|links|url|download|share|copy link|ad|ads|"
+                    + "iptv|xtream|xtream codes?|code|codes|portal|mac|playlist|list|here|click here|more|show more|read more|"
+                    + "skip to main content|open navigation menu|=+|-+|\\*+|_+|\\.+)$");
+
+    /** A short name-like line: not a "Label: value" line, not a keyword of the page, not a sentence. */
+    static boolean looksLikeTitle(String t) {
+        if (t.length() > 60 || t.contains("://")) {
+            return false;
+        }
+        if (LABELLED.matcher(t).matches() || NOISE_WORD.matcher(t).matches()) {
+            return false;
+        }
+        return t.split("\\s+").length <= 8 && !t.matches(".*[.!?\\u061f]$");
     }
 
     private static String stripQuotes(String s) {
