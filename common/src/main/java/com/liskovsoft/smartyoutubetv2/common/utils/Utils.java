@@ -66,6 +66,7 @@ import com.liskovsoft.sharedutils.helpers.Helpers;
 import com.liskovsoft.sharedutils.helpers.MessageHelpers;
 import com.liskovsoft.sharedutils.misc.WeakHashSet;
 import com.liskovsoft.sharedutils.mylogger.Log;
+import com.liskovsoft.smartyoutubetv2.common.app.presenters.service.SidebarService;
 import com.liskovsoft.sharedutils.okhttp.OkHttpManager;
 import com.liskovsoft.smartyoutubetv2.common.BuildConfig;
 import com.liskovsoft.smartyoutubetv2.common.R;
@@ -1362,6 +1363,19 @@ public class Utils {
                 }
             }
         });
+    }
+
+    /**
+     * Writes all settings that are saved with a delay right now.<br/>
+     * Called when the app goes to background: the process may be killed afterwards and delayed writes would be lost.
+     */
+    public static void persistAllData(Context context) {
+        try {
+            persistData(context);
+            SidebarService.instance(context).persistState();
+        } catch (RuntimeException e) {
+            Log.e(TAG, "persistAllData error: %s", e.getMessage());
+        }
     }
 
     private static void persistData(Context context) {

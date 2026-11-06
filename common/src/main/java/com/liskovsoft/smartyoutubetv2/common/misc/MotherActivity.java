@@ -230,6 +230,9 @@ public class MotherActivity extends FragmentActivity {
 
         // Stop managing the screensaver so a paused activity cannot keep the display awake.
         mScreensaverManager.suspend();
+
+        // Settings are saved with a delay. Flush them: the app may be killed right after leaving.
+        Utils.persistAllData(this);
     }
 
     @Override

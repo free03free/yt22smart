@@ -101,12 +101,23 @@ public class AppPrefs extends SharedPreferencesBase implements AccountChangeList
 
     public String getSidebarData() {
         // Always use multiple profiles
-        return getData(getProfileKey(SIDEBAR_DATA,  true));
+        String data = getData(getProfileKey(SIDEBAR_DATA,  true));
+
+        // The profile name may differ between launches (account loaded late, signed out, anonymous...).
+        // Fall back to the last saved copy instead of resetting the sections order to defaults.
+        if (TextUtils.isEmpty(data)) {
+            data = getData(SIDEBAR_DATA);
+        }
+
+        return data;
     }
 
     public void setSidebarData(String data) {
         // Always use multiple profiles
         setData(getProfileKey(SIDEBAR_DATA,  true), data);
+
+        // Profile independent copy (see getSidebarData)
+        setData(SIDEBAR_DATA, data);
     }
 
     public String getProfileData(String key) {

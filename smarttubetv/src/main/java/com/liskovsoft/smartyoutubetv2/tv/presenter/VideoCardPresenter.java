@@ -197,6 +197,16 @@ public class VideoCardPresenter extends LongClickPresenter {
         }
     }
 
+    /** Arabic-dominant text: RTL paragraph, hugs the right edge. Latin-dominant: LTR, left edge. */
+    private static void applyTextDirection(TextView view, CharSequence text) {
+        if (view == null || text == null) {
+            return;
+        }
+        boolean rtl = com.liskovsoft.smartyoutubetv2.common.iptv.ArabicText.isRtl(text);
+        view.setTextDirection(rtl ? View.TEXT_DIRECTION_RTL : View.TEXT_DIRECTION_LTR);
+        view.setTextAlignment(View.TEXT_ALIGNMENT_TEXT_START);
+    }
+
     /** IPTV "works" marker: every "\u25CF" in a card text is painted green (plain text has no colour). */
     private static CharSequence greenDots(CharSequence text) {
         if (text == null || text.toString().indexOf('\u25CF') < 0) {
@@ -228,6 +238,8 @@ public class VideoCardPresenter extends LongClickPresenter {
 
         cardView.setTitleText(greenDots(video.getTitle()));
         cardView.setContentText(greenDots(video.getSecondTitle()));
+        applyTextDirection((TextView) cardView.findViewById(R.id.title_text), video.getTitle());
+        applyTextDirection((TextView) cardView.findViewById(R.id.content_text), video.getSecondTitle());
         // Count progress that very close to zero. E.g. when user closed video immediately.
         cardView.setProgress(video.percentWatched > 0 && video.percentWatched < 1 ? 1 : Math.round(video.percentWatched));
         cardView.setBadgeText(

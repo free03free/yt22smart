@@ -122,7 +122,7 @@ public class ViewUtil {
     }
 
     public static void applyMarqueeRtlParams(TextView textView, boolean scroll) {
-        if (!Helpers.isTextRTL(textView.getText())) {
+        if (!com.liskovsoft.smartyoutubetv2.common.iptv.ArabicText.isRtl(textView.getText())) {
             // TextView may be reused from rtl context. Do reset.
             // NOTE: don't enable commented options because Setting item's text won't be centered.
             //textView.setTextAlignment(View.TEXT_ALIGNMENT_GRAVITY);

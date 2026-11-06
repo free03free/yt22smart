@@ -333,6 +333,7 @@ public class IptvPlayerActivity extends Activity {
                 } else {
                     nameView.setText(name);
                 }
+                nameView.setTextDirection(com.liskovsoft.smartyoutubetv2.common.iptv.ArabicText.isRtl(name) ? View.TEXT_DIRECTION_RTL : View.TEXT_DIRECTION_LTR);
                 nameView.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp);
                 nameView.setTextColor(color);
                 return row;
@@ -929,7 +930,8 @@ public class IptvPlayerActivity extends Activity {
 
     private void showTitle(IptvChannel channel) {
         String name = channel.name == null || channel.name.trim().isEmpty() ? channel.url : channel.name;
-        mTitleView.setText(name + "   (" + (mIndex + 1) + "/" + mQueue.size() + ")");
+        mTitleView.setTextDirection(com.liskovsoft.smartyoutubetv2.common.iptv.ArabicText.isRtl(name) ? View.TEXT_DIRECTION_RTL : View.TEXT_DIRECTION_LTR);
+        mTitleView.setText(com.liskovsoft.smartyoutubetv2.common.iptv.ArabicText.withCounter(name, mIndex + 1, mQueue.size()));
         mTitleView.setVisibility(View.VISIBLE);
         mHandler.removeCallbacks(mHideTitle);
         mHandler.postDelayed(mHideTitle, OVERLAY_MS);
