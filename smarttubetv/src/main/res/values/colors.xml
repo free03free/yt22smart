@@ -20,7 +20,10 @@
     <color name="card_selected_text_black">#000000</color>
     <color name="card_selected_text_grey">#343434</color>
     <color name="card_default_background">#0096a6</color>
-    <color name="card_default_background_dark">#004B53</color>
+    <color name="card_default_background_dark">#1C1C1E</color>
+    <color name="card_selected_background_dark">#34343A</color>
+    <color name="card_subtitle_text">#A8A8B0</color>
+    <color name="card_subtitle_text_dark">#5F5F66</color>
     <color name="card_default_text">#FFFFFF</color>
 
     <!-- Browse fragment colors -->

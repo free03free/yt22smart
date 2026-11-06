@@ -110,7 +110,11 @@ public class ComplexImageView extends RelativeLayout {
             return;
         }
 
-        mBadgeText.setBackgroundColor(color);
+        android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
+        // Semi-transparent pill instead of a flat black rectangle glued to the corner
+        bg.setColor((color & 0x00FFFFFF) | 0xE6000000);
+        bg.setCornerRadius(4 * getResources().getDisplayMetrics().density);
+        mBadgeText.setBackground(bg);
     }
 
     /**

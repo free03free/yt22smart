@@ -3,11 +3,15 @@ package com.liskovsoft.smartyoutubetv2.tv.presenter;
 import android.app.Activity;
 import android.content.Context;
 import android.graphics.Bitmap;
+import android.graphics.Outline;
+import android.graphics.Typeface;
 import android.graphics.drawable.Drawable;
 import android.os.Build.VERSION;
 import android.util.Pair;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewOutlineProvider;
+import android.util.TypedValue;
 import android.widget.TextView;
 import androidx.annotation.Nullable;
 import androidx.core.content.ContextCompat;
@@ -39,6 +43,8 @@ public class VideoCardPresenter extends LongClickPresenter {
     private int mDefaultTextColor = -1;
     private int mSelectedBackgroundColor = -1;
     private int mSelectedTextColor = -1;
+    private int mDefaultSubtitleColor = -1;
+    private int mSelectedSubtitleColor = -1;
     private int mCardPreviewType;
     private int mThumbQuality;
     private int mWidth;
@@ -54,8 +60,13 @@ public class VideoCardPresenter extends LongClickPresenter {
                 ViewUtil.isLightColor(mDefaultBackgroundColor) ? 0xFF212121 : ContextCompat.getColor(context, R.color.card_default_text);
         mSelectedBackgroundColor =
                 ContextCompat.getColor(context, Helpers.getThemeAttr(context, R.attr.cardSelectedBackground));
-        mSelectedTextColor =
-                ContextCompat.getColor(context, R.color.card_selected_text_grey);
+        boolean selectedIsLight = ViewUtil.isLightColor(mSelectedBackgroundColor);
+        mSelectedTextColor = selectedIsLight ?
+                ContextCompat.getColor(context, R.color.card_selected_text_grey) : 0xFFFFFFFF;
+        mDefaultSubtitleColor = ContextCompat.getColor(context,
+                ViewUtil.isLightColor(mDefaultBackgroundColor) ? R.color.card_subtitle_text_dark : R.color.card_subtitle_text);
+        mSelectedSubtitleColor = ContextCompat.getColor(context,
+                selectedIsLight ? R.color.card_subtitle_text_dark : R.color.card_subtitle_text);
 
         mCardPreviewType = getCardPreviewType(context);
         mThumbQuality = getThumbQuality(context);
@@ -88,14 +99,63 @@ public class VideoCardPresenter extends LongClickPresenter {
         //if (VERSION.SDK_INT >= 23 && MainUIData.instance(context).isUiTweakEnabled(MainUIData.UI_TWEAK_ROUNDED_CORNERS)) {
         //    cardView.setForeground(ContextCompat.getDrawable(context, R.drawable.lb_card_outline));
         //}
+        applyModernStyle(cardView);
         updateCardBackgroundColor(cardView, false);
         return new ViewHolder(cardView);
+    }
+
+    /** Modern look: rounded corners, roomy info area, clearer title typography. */
+    private void applyModernStyle(ComplexImageCardView cardView) {
+        float d = cardView.getResources().getDisplayMetrics().density;
+
+        if (VERSION.SDK_INT >= 21) {
+            final float radius = 10 * d;
+            cardView.setOutlineProvider(new ViewOutlineProvider() {
+                @Override
+                public void getOutline(View view, Outline outline) {
+                    outline.setRoundRect(0, 0, view.getWidth(), view.getHeight(), radius);
+                }
+            });
+            cardView.setClipToOutline(true);
+        }
+
+        View infoField = cardView.findViewById(R.id.info_field);
+        if (infoField != null) {
+            infoField.setPadding(Math.round(10 * d), Math.round(8 * d), Math.round(10 * d), Math.round(10 * d));
+        }
+
+        TextView titleText = cardView.findViewById(R.id.title_text);
+        if (titleText != null) {
+            titleText.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+            titleText.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
+            titleText.setLineSpacing(0f, 1.1f);
+            titleText.setIncludeFontPadding(false);
+            // Arabic titles hug the right edge, Latin titles the left one
+            titleText.setTextDirection(View.TEXT_DIRECTION_FIRST_STRONG);
+            titleText.setTextAlignment(View.TEXT_ALIGNMENT_TEXT_START);
+            ViewGroup.MarginLayoutParams lp = titleText.getLayoutParams() instanceof ViewGroup.MarginLayoutParams ?
+                    (ViewGroup.MarginLayoutParams) titleText.getLayoutParams() : null;
+            if (lp != null) {
+                lp.leftMargin = 0;
+                lp.topMargin = 0;
+                titleText.setLayoutParams(lp);
+            }
+        }
+
+        TextView contentText = cardView.findViewById(R.id.content_text);
+        if (contentText != null) {
+            contentText.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12.5f);
+            contentText.setIncludeFontPadding(false);
+            contentText.setTextDirection(View.TEXT_DIRECTION_FIRST_STRONG);
+            contentText.setTextAlignment(View.TEXT_ALIGNMENT_TEXT_START);
+        }
     }
 
     private void updateCardBackgroundColor(ComplexImageCardView view, boolean selected) {
         boolean checked = Boolean.TRUE.equals(view.getTag()); // IPTV multi-select: ticked card
         int backgroundColor = checked ? 0xFF1B5E20 : selected ? mSelectedBackgroundColor : mDefaultBackgroundColor;
         int textColor = checked ? 0xFFFFFFFF : selected ? mSelectedTextColor : mDefaultTextColor;
+        int subtitleColor = checked ? 0xFFDDEEDD : selected ? mSelectedSubtitleColor : mDefaultSubtitleColor;
 
         // Both background colors should be set because the view's
         // background is temporarily visible during animations.
@@ -113,7 +173,27 @@ public class VideoCardPresenter extends LongClickPresenter {
         }
         TextView contentText = view.findViewById(R.id.content_text);
         if (contentText != null) {
-            contentText.setTextColor(textColor);
+            contentText.setTextColor(subtitleColor);
+        }
+
+        updateCardFrame(view, checked, selected);
+    }
+
+    /** Green frame for ticked cards, thin white frame for the focused card. */
+    private void updateCardFrame(ComplexImageCardView view, boolean checked, boolean selected) {
+        if (VERSION.SDK_INT < 23) {
+            return;
+        }
+
+        if (checked || selected) {
+            float d = view.getResources().getDisplayMetrics().density;
+            android.graphics.drawable.GradientDrawable frame = new android.graphics.drawable.GradientDrawable();
+            frame.setColor(android.graphics.Color.TRANSPARENT);
+            frame.setStroke(Math.round((checked ? 5 : 2.5f) * d), checked ? 0xFF00E676 : 0xFFFFFFFF);
+            frame.setCornerRadius(10 * d);
+            view.setForeground(frame);
+        } else {
+            view.setForeground(null);
         }
     }
 
@@ -134,18 +214,6 @@ public class VideoCardPresenter extends LongClickPresenter {
     /** Ticked cards (IPTV multi-select) get a green frame + green info area so the choice is obvious. */
     private void applyCheckedState(ComplexImageCardView cardView, boolean checked) {
         cardView.setTag(checked ? Boolean.TRUE : null);
-        if (VERSION.SDK_INT >= 23) {
-            if (checked) {
-                float d = cardView.getResources().getDisplayMetrics().density;
-                android.graphics.drawable.GradientDrawable frame = new android.graphics.drawable.GradientDrawable();
-                frame.setColor(android.graphics.Color.TRANSPARENT);
-                frame.setStroke(Math.round(5 * d), 0xFF00E676);
-                frame.setCornerRadius(12 * d);
-                cardView.setForeground(frame);
-            } else {
-                cardView.setForeground(null);
-            }
-        }
         updateCardBackgroundColor(cardView, cardView.isSelected());
     }
 
