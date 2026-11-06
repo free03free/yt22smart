@@ -966,6 +966,10 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
     }
 
     private void updateVideoRows(BrowseSection section, Observable<List<MediaGroup>> groups) {
+        loadVideoRows(section, groups, false);
+    }
+
+    private void loadVideoRows(BrowseSection section, Observable<List<MediaGroup>> groups, boolean isFallback) {
         Log.d(TAG, "updateRowsHeader: Start loading section: " + section.getTitle());
 
         disposeActions();
@@ -989,6 +993,7 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
         }
 
         AtomicInteger groupIndex = new AtomicInteger(-1);
+        AtomicInteger shownGroups = new AtomicInteger(0);
 
         Disposable updateAction = groups
                 .subscribe(
@@ -1009,6 +1014,7 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
                                     videoGroup.setTitle(getContext().getString(R.string.suggestions));
                                 }
 
+                                shownGroups.incrementAndGet();
                                 showGroup(videoGroup);
                                 mBrowseProcessor.process(videoGroup);
 
@@ -1017,13 +1023,46 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
                         },
                         error -> {
                             Log.e(TAG, "updateRowsHeader error: %s", error.getMessage());
+                            if (!isFallback && tryHomeFallback(section, shownGroups.get())) {
+                                return;
+                            }
                             handleLoadError(error);
                         }, () -> {
-                            appendHomeRefreshRow(section, groupIndex.incrementAndGet());
+                            // Home returned nothing (no videos): try the trending feed instead of showing a lonely refresh card.
+                            if (!isFallback && tryHomeFallback(section, shownGroups.get())) {
+                                return;
+                            }
+
+                            // Add the refresh card only below real content. Otherwise it hides the empty/sign-in error screen.
+                            if (shownGroups.get() > 0) {
+                                appendHomeRefreshRow(section, groupIndex.incrementAndGet());
+                            }
                             handleLoadError(null);
                         });
 
         mActions.add(updateAction);
+    }
+
+    /**
+     * Home feed came back empty (not signed in, broken personalization etc).
+     * Show the trending feed in the Home section so the page is never blank.
+     */
+    private boolean tryHomeFallback(BrowseSection section, int shownGroups) {
+        if (shownGroups > 0 || section == null || section.getId() != MediaGroup.TYPE_HOME) {
+            return false;
+        }
+
+        Observable<List<MediaGroup>> trending = mRowMapping.get(MediaGroup.TYPE_TRENDING);
+
+        if (trending == null) {
+            return false;
+        }
+
+        Log.d(TAG, "Home is empty. Falling back to trending feed");
+
+        loadVideoRows(section, trending, true);
+
+        return true;
     }
 
     /** Refresh card in its own row below the home rows (can be turned off in the library settings). */
