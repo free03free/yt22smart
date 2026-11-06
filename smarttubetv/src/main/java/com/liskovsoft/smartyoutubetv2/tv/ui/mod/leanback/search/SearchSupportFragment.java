@@ -883,7 +883,7 @@ public class SearchSupportFragment extends Fragment {
         final Context context = getActivity();
         final String title = context.getString(com.liskovsoft.smartyoutubetv2.common.R.string.inapp_kb_search_title);
 
-        InAppKeyboardDialog.show(context, title, title, getSearchBarText(), text -> {
+        InAppKeyboardDialog.showSearch(context, title, title, getSearchBarText(), text -> {
             String query = text == null ? "" : text.trim();
             if (!query.isEmpty()) {
                 submitted[0] = true;

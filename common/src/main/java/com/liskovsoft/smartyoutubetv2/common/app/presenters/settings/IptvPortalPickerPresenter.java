@@ -167,7 +167,7 @@ public final class IptvPortalPickerPresenter {
                         : context.getString(R.string.iptv_pick_filtered, visible.size(), s.items.size()) + "  [" + s.filter + "]",
                 option -> {
                     d.closeDialog();
-                    InAppKeyboardDialog.show(context, context.getString(R.string.iptv_pick_search),
+                    InAppKeyboardDialog.showSearch(context, context.getString(R.string.iptv_pick_search),
                             context.getString(R.string.iptv_pick_search_hint), s.filter, value -> {
                                 s.filter = value == null ? "" : value.trim();
                                 s.page = 0;

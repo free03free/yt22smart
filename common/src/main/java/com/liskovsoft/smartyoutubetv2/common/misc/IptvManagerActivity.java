@@ -1045,7 +1045,7 @@ public class IptvManagerActivity extends Activity {
             return;
         }
         // built-in Arabic/English keyboard: the typed text is kept even if the dialog is closed with Back
-        InAppKeyboardDialog.show(this, getString(R.string.iptv_section_search), getString(R.string.iptv_section_search_hint),
+        InAppKeyboardDialog.showSearch(this, getString(R.string.iptv_section_search), getString(R.string.iptv_section_search_hint),
                 mFilter, text -> {
                     mFilter = text.trim();
                     mCursor = 0;

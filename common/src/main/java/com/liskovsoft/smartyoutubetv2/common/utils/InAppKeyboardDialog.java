@@ -4,7 +4,11 @@ import android.app.Dialog;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.res.ColorStateList;
+import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.Paint;
+import android.graphics.Path;
+import android.graphics.RectF;
 import android.graphics.Typeface;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.GradientDrawable;
@@ -22,11 +26,9 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
 import android.view.WindowManager;
-import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
-import com.liskovsoft.sharedutils.helpers.MessageHelpers;
 import com.liskovsoft.smartyoutubetv2.common.R;
 
 import java.util.ArrayList;
@@ -41,6 +43,8 @@ import java.util.Locale;
  * closing the dialog with Back, Cancel, or even restarting the app. The next time a dialog with the same title is
  * opened the last text is restored (press "Clear" to empty it).
  * <p>
+ * Look: a dark bottom sheet in the style of the YouTube TV keyboard - rounded dark keys, a white focus highlight
+ * with a slight zoom, vector icons drawn in code (no font glyphs), accent colour taken from the app theme.
  * Works with touch, TV remote (D-pad) and a physical keyboard. Layout is built in code - no XML needed.
  */
 public final class InAppKeyboardDialog {
@@ -58,12 +62,18 @@ public final class InAppKeyboardDialog {
     private static final int LAYER_SYM = 2;
 
     private static final float COLS = 12f;
-    private static final int C_BG = 0xFF1E1E1E;
-    private static final int C_BOX = 0xFF101010;
-    private static final int C_KEY = 0xFF3A3A3A;
-    private static final int C_SPECIAL = 0xFF555555;
-    private static final int C_OK = 0xFF2E7D32;
-    private static final int C_ACCENT = 0xFFFFB300;
+
+    // YouTube-TV like palette
+    private static final int C_SHEET = 0xFF212121;
+    private static final int C_FIELD = 0xFF121212;
+    private static final int C_FIELD_STROKE = 0xFF3F3F3F;
+    private static final int C_KEY = 0xFF303030;
+    private static final int C_KEY_SPECIAL = 0xFF3D3D3D;
+    private static final int C_TEXT = 0xFFF1F1F1;
+    private static final int C_TEXT_DIM = 0xFFAAAAAA;
+    private static final int C_FOCUS = 0xFFFFFFFF;
+    private static final int C_FOCUS_TEXT = 0xFF0F0F0F;
+    private static final int C_DEFAULT_ACCENT = 0xFFE52D27;
     private static final String TATWEEL = "\u0640";
 
     private static final String[] DIGITS = {"1", "2", "3", "4", "5", "6", "7", "8", "9", "0"};
@@ -97,8 +107,12 @@ public final class InAppKeyboardDialog {
     private final String mTitle;
     private final String mHint;
     private final OnSubmit mOnSubmit;
+    private final boolean mSearchStyle;
     private final SharedPreferences mPrefs;
     private final StringBuilder mText = new StringBuilder();
+    private final float mDensity;
+    private final int mAccent;
+    private int mRowH;
     private int mCaret;
     private int mLetters;   // LAYER_EN or LAYER_AR: the last letters layout used
     private int mLayer;     // what is shown now
@@ -112,8 +126,21 @@ public final class InAppKeyboardDialog {
     }
 
     public static void show(Context context, String title, String hint, String initial, OnSubmit onSubmit, Runnable onDismiss) {
+        open(context, title, hint, initial, onSubmit, onDismiss, false);
+    }
+
+    /** Same, but styled as a search box: magnifier in the field and on the action key. */
+    public static void showSearch(Context context, String title, String hint, String initial, OnSubmit onSubmit) {
+        showSearch(context, title, hint, initial, onSubmit, null);
+    }
+
+    public static void showSearch(Context context, String title, String hint, String initial, OnSubmit onSubmit, Runnable onDismiss) {
+        open(context, title, hint, initial, onSubmit, onDismiss, true);
+    }
+
+    private static void open(Context context, String title, String hint, String initial, OnSubmit onSubmit, Runnable onDismiss, boolean search) {
         try {
-            new InAppKeyboardDialog(context, title, hint, initial, onSubmit).open(onDismiss);
+            new InAppKeyboardDialog(context, title, hint, initial, onSubmit, search).open(onDismiss);
         } catch (RuntimeException e) {
             // BadTokenException etc. - fall back to the old dialog so the feature never gets lost
             e.printStackTrace();
@@ -130,12 +157,15 @@ public final class InAppKeyboardDialog {
         return context.getApplicationContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
     }
 
-    private InAppKeyboardDialog(Context context, String title, String hint, String initial, OnSubmit onSubmit) {
+    private InAppKeyboardDialog(Context context, String title, String hint, String initial, OnSubmit onSubmit, boolean search) {
         mContext = context;
         mTitle = title == null ? "" : title;
         mHint = hint == null ? "" : hint;
         mOnSubmit = onSubmit;
+        mSearchStyle = search;
         mPrefs = prefs(context);
+        mDensity = context.getResources().getDisplayMetrics().density;
+        mAccent = resolveAccent();
 
         String start = initial == null ? "" : initial;
         if (start.isEmpty()) {
@@ -165,13 +195,16 @@ public final class InAppKeyboardDialog {
         if (window != null) {
             window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
             window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN);
+            window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+            window.setDimAmount(0.65f);
+            window.setGravity(Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
         }
 
         mDialog.show();
 
         if (window != null) {
             DisplayMetrics dm = mContext.getResources().getDisplayMetrics();
-            int width = (int) Math.min(dm.widthPixels * 0.96f, dp(1000));
+            int width = (int) Math.min(dm.widthPixels, dp(1100));
             window.setLayout(width, ViewGroup.LayoutParams.WRAP_CONTENT);
         }
 
@@ -182,56 +215,114 @@ public final class InAppKeyboardDialog {
     }
 
     private View buildRoot() {
+        DisplayMetrics dm = mContext.getResources().getDisplayMetrics();
+        float heightDp = dm.heightPixels / dm.density;
+        boolean leanback = isLeanback();
+        boolean titleRow = !mSearchStyle || !leanback;
+
+        // keys get as tall as the screen allows (720p TV is only ~360dp high)
+        float fixed = 30 + 56 + 10 + (titleRow ? 34 : 0);
+        float rowDp = (heightDp * 0.92f - fixed) / 5f - 6f;
+        rowDp = Math.max(34f, Math.min(56f, rowDp));
+        mRowH = dp(Math.round(rowDp));
+
         LinearLayout root = new LinearLayout(mContext);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dp(14), dp(10), dp(14), dp(12));
-        root.setBackground(rounded(C_BG, dp(16)));
+        root.setClipChildren(false);
+        root.setClipToPadding(false);
+        root.setPadding(dp(18), dp(14), dp(18), dp(16));
+        GradientDrawable sheet = new GradientDrawable();
+        sheet.setColor(C_SHEET);
+        float r = dp(22);
+        sheet.setCornerRadii(new float[]{r, r, r, r, 0, 0, 0, 0});
+        root.setBackground(sheet);
         // keys keep their physical positions whatever the app language direction is
         if (Build.VERSION.SDK_INT >= 17) {
             root.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
         }
 
-        // title + close
-        LinearLayout top = new LinearLayout(mContext);
-        top.setOrientation(LinearLayout.HORIZONTAL);
-        top.setGravity(Gravity.CENTER_VERTICAL);
-        TextView title = new TextView(mContext);
-        title.setText(mTitle);
-        title.setTextColor(Color.WHITE);
-        title.setTextSize(TypedValue.COMPLEX_UNIT_SP, 18);
-        title.setTypeface(Typeface.DEFAULT_BOLD);
-        top.addView(title, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        Button close = key("\u2715", C_SPECIAL, v -> mDialog.dismiss());
-        top.addView(close, new LinearLayout.LayoutParams(dp(52), dp(40)));
-        root.addView(top);
+        if (titleRow) {
+            LinearLayout top = new LinearLayout(mContext);
+            top.setOrientation(LinearLayout.HORIZONTAL);
+            top.setGravity(Gravity.CENTER_VERTICAL);
+            TextView title = new TextView(mContext);
+            title.setText(mTitle);
+            title.setTextColor(C_TEXT_DIM);
+            title.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
+            title.setTypeface(medium());
+            title.setSingleLine(true);
+            top.addView(title, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+            if (!leanback) { // touch devices have no Back key on screen
+                KeyView close = key("", KeyView.CLOSE, C_KEY_SPECIAL, v -> mDialog.dismiss());
+                top.addView(close, new LinearLayout.LayoutParams(dp(40), dp(30)));
+            }
+            LinearLayout.LayoutParams topLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(34));
+            root.addView(top, topLp);
+        }
 
-        // text box
+        // text field: pill with the magnifier on the left (search) like the YouTube search bar
+        LinearLayout field = new LinearLayout(mContext);
+        field.setOrientation(LinearLayout.HORIZONTAL);
+        field.setGravity(Gravity.CENTER_VERTICAL);
+        field.setPadding(dp(16), 0, dp(16), 0);
+        GradientDrawable box = new GradientDrawable();
+        box.setColor(C_FIELD);
+        box.setCornerRadius(dp(30));
+        box.setStroke(dp(1), C_FIELD_STROKE);
+        field.setBackground(box);
+        if (mSearchStyle) {
+            KeyView icon = new KeyView(mContext);
+            icon.setIcon(KeyView.SEARCH, C_TEXT_DIM, C_TEXT_DIM, false);
+            icon.setFocusable(false);
+            field.addView(icon, new LinearLayout.LayoutParams(dp(30), dp(30)));
+        }
         mDisplay = new TextView(mContext);
-        mDisplay.setTextSize(TypedValue.COMPLEX_UNIT_SP, 24);
-        mDisplay.setTextColor(Color.WHITE);
+        mDisplay.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 24);
+        mDisplay.setTypeface(medium());
         mDisplay.setGravity(Gravity.CENTER_VERTICAL);
-        mDisplay.setPadding(dp(14), dp(6), dp(14), dp(6));
-        mDisplay.setMinHeight(dp(56));
-        mDisplay.setSingleLine(false);
-        mDisplay.setMaxLines(2);
+        mDisplay.setSingleLine(true);
+        mDisplay.setEllipsize(android.text.TextUtils.TruncateAt.START);
         if (Build.VERSION.SDK_INT >= 17) {
             mDisplay.setTextDirection(View.TEXT_DIRECTION_FIRST_STRONG);
             mDisplay.setTextAlignment(View.TEXT_ALIGNMENT_TEXT_START); // Arabic text hugs the right, English the left
         }
-        GradientDrawable box = rounded(C_BOX, dp(10));
-        box.setStroke(dp(2), C_KEY);
-        mDisplay.setBackground(box);
-        LinearLayout.LayoutParams boxLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        boxLp.setMargins(0, dp(6), 0, dp(8));
-        root.addView(mDisplay, boxLp);
+        LinearLayout.LayoutParams dispLp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f);
+        dispLp.setMargins(mSearchStyle ? dp(12) : 0, 0, 0, 0);
+        field.addView(mDisplay, dispLp);
+        LinearLayout.LayoutParams fieldLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(56));
+        fieldLp.setMargins(0, dp(2), 0, dp(10));
+        root.addView(field, fieldLp);
 
         mKeys = new LinearLayout(mContext);
         mKeys.setOrientation(LinearLayout.VERTICAL);
+        mKeys.setClipChildren(false);
         root.addView(mKeys, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         buildKeys();
         refresh(false);
         return root;
+    }
+
+    private boolean isLeanback() {
+        try {
+            return mContext.getPackageManager().hasSystemFeature("android.software.leanback");
+        } catch (RuntimeException e) {
+            return false;
+        }
+    }
+
+    /** Accent from the app theme (red / teal / blue colour schemes); falls back to YouTube red. */
+    private int resolveAccent() {
+        try {
+            TypedValue tv = new TypedValue();
+            if (mContext.getTheme().resolveAttribute(android.R.attr.colorAccent, tv, true)
+                    && tv.type >= TypedValue.TYPE_FIRST_COLOR_INT && tv.type <= TypedValue.TYPE_LAST_COLOR_INT) {
+                return tv.data | 0xFF000000;
+            }
+        } catch (RuntimeException e) {
+            // use default
+        }
+        return C_DEFAULT_ACCENT;
     }
 
     // ------------------------------------------------------------------ keys
@@ -275,13 +366,13 @@ public final class InAppKeyboardDialog {
         LinearLayout row = newRow();
         float used = 0;
         if (withBackspace && shiftWeight > 0) {
-            Button shift = key("\u21E7", mShift ? C_ACCENT : C_SPECIAL, v -> {
+            KeyView shift = key("", KeyView.SHIFT, mShift ? C_FOCUS : C_KEY_SPECIAL, v -> {
                 mShift = !mShift;
                 rebuild("shift");
             });
             shift.setTag("shift");
-            if (mShift) {
-                shift.setTextColor(Color.BLACK);
+            if (mShift) { // active: white key, dark icon
+                shift.setIcon(KeyView.SHIFT, C_FOCUS_TEXT, C_FOCUS_TEXT, true);
             }
             row.addView(shift, weighted(shiftWeight));
             used += shiftWeight;
@@ -291,7 +382,7 @@ public final class InAppKeyboardDialog {
             used += 1f;
         }
         if (withBackspace) {
-            Button back = key("\u232B", C_SPECIAL, v -> backspace());
+            KeyView back = key("", KeyView.BACKSPACE, C_KEY_SPECIAL, v -> backspace());
             back.setOnLongClickListener(v -> {
                 deleteWord();
                 return true;
@@ -310,16 +401,17 @@ public final class InAppKeyboardDialog {
     private LinearLayout bottomRow() {
         LinearLayout row = newRow();
 
-        Button sym = key(mLayer == LAYER_SYM ? "ABC" : "\u061F123", C_SPECIAL, v -> {
+        String lettersLabel = mLetters == LAYER_AR ? "\u0623\u0628\u062C" : "ABC";
+        KeyView sym = key(mLayer == LAYER_SYM ? lettersLabel : "123", KeyView.NONE, C_KEY_SPECIAL, v -> {
             mLayer = mLayer == LAYER_SYM ? mLetters : LAYER_SYM;
             mShift = false;
             rebuild("sym");
         });
         sym.setTag("sym");
+        sym.setTextSize(TypedValue.COMPLEX_UNIT_DIP, textDp() * 0.8f);
         row.addView(sym, weighted(1.5f));
 
-        // label = the language you will switch to
-        Button lang = key(mLetters == LAYER_EN ? "\u0639" : "EN", C_SPECIAL, v -> {
+        KeyView lang = key("", KeyView.GLOBE, C_KEY_SPECIAL, v -> {
             mLetters = mLetters == LAYER_EN ? LAYER_AR : LAYER_EN;
             mLayer = mLetters;
             mShift = false;
@@ -329,27 +421,42 @@ public final class InAppKeyboardDialog {
         lang.setTag("lang");
         row.addView(lang, weighted(1.5f));
 
-        row.addView(key("\u25C0", C_SPECIAL, v -> moveCaret(-1)), weighted(1f));
+        row.addView(key("", KeyView.LEFT, C_KEY_SPECIAL, v -> moveCaret(-1)), weighted(1f));
 
-        Button space = key(" ", C_KEY, v -> insert(" "));
+        // space bar shows the current language, like the YouTube keyboard
+        String langName = mLayer == LAYER_SYM ? "" : (mLetters == LAYER_AR ? "\u0627\u0644\u0639\u0631\u0628\u064A\u0629" : "English");
+        KeyView space = key(langName, KeyView.NONE, C_KEY, v -> insert(" "));
         space.setTag("space");
+        space.setTextSize(TypedValue.COMPLEX_UNIT_DIP, textDp() * 0.7f);
+        space.setNormalTextColor(C_TEXT_DIM);
         row.addView(space, weighted(3.5f));
 
-        row.addView(key("\u25B6", C_SPECIAL, v -> moveCaret(1)), weighted(1f));
+        row.addView(key("", KeyView.RIGHT, C_KEY_SPECIAL, v -> moveCaret(1)), weighted(1f));
 
-        row.addView(key(mContext.getString(R.string.inapp_kb_clear), C_SPECIAL, v -> {
+        KeyView clear = key(mContext.getString(R.string.inapp_kb_clear), KeyView.NONE, C_KEY_SPECIAL, v -> {
             mText.setLength(0);
             mCaret = 0;
             refresh(true);
-        }), weighted(1.75f));
+        });
+        clear.setTextSize(TypedValue.COMPLEX_UNIT_DIP, textDp() * 0.7f);
+        row.addView(clear, weighted(1.75f));
 
-        Button ok = key("\u2713 " + mContext.getString(android.R.string.ok), C_OK, v -> submit());
+        // action key in the accent colour: magnifier for search, text otherwise
+        KeyView ok = mSearchStyle
+                ? key("", KeyView.SEARCH, mAccent, v -> submit())
+                : key(mContext.getString(android.R.string.ok), KeyView.NONE, mAccent, v -> submit());
         ok.setTag("ok");
+        ok.setNormalTextColor(Color.WHITE);
+        if (mSearchStyle) {
+            ok.setIcon(KeyView.SEARCH, Color.WHITE, mAccent, false);
+        } else {
+            ok.setTextSize(TypedValue.COMPLEX_UNIT_DIP, textDp() * 0.75f);
+        }
         row.addView(ok, weighted(1.75f));
         return row;
     }
 
-    private Button charKey(final String label) {
+    private KeyView charKey(final String label) {
         String shown = label;
         String value = label;
         if (mLayer == LAYER_EN && mShift) {
@@ -358,7 +465,7 @@ public final class InAppKeyboardDialog {
             shown = TATWEEL + label; // show a combining mark on a carrier so it is visible
         }
         final String insertValue = value;
-        return key(shown, C_KEY, v -> {
+        return key(shown, KeyView.NONE, C_KEY, v -> {
             insert(insertValue);
             if (mShift) { // one-shot shift
                 mShift = false;
@@ -367,31 +474,37 @@ public final class InAppKeyboardDialog {
         });
     }
 
-    private Button key(String label, int color, View.OnClickListener click) {
-        Button b = new Button(mContext);
+    private float textDp() {
+        return mRowH / mDensity * 0.42f;
+    }
+
+    private KeyView key(String label, int icon, int color, View.OnClickListener click) {
+        KeyView b = new KeyView(mContext);
         b.setText(label);
-        b.setAllCaps(false);
-        b.setTextSize(TypedValue.COMPLEX_UNIT_SP, 18);
-        b.setTypeface(Typeface.DEFAULT_BOLD);
+        b.setTextSize(TypedValue.COMPLEX_UNIT_DIP, textDp());
+        b.setTypeface(medium());
         b.setGravity(Gravity.CENTER);
-        b.setMinWidth(0);
-        b.setMinimumWidth(0);
-        b.setMinHeight(0);
-        b.setMinimumHeight(0);
-        b.setPadding(0, 0, 0, 0);
         b.setSingleLine(true);
+        b.setIncludeFontPadding(false);
+        b.setPadding(0, 0, 0, 0);
         b.setFocusable(true);
-        b.setTextColor(new ColorStateList(
-                new int[][]{{android.R.attr.state_focused}, {android.R.attr.state_pressed}, {}},
-                new int[]{Color.BLACK, Color.BLACK, Color.WHITE}));
+        b.setClickable(true);
+        b.setNormalTextColor(C_TEXT);
+        b.setIcon(icon, C_TEXT, C_FOCUS_TEXT, false);
+
         StateListDrawable bg = new StateListDrawable();
-        bg.addState(new int[]{android.R.attr.state_focused}, rounded(C_ACCENT, dp(8)));
-        bg.addState(new int[]{android.R.attr.state_pressed}, rounded(C_ACCENT, dp(8)));
-        bg.addState(new int[]{}, rounded(color, dp(8)));
+        bg.addState(new int[]{android.R.attr.state_focused}, rounded(C_FOCUS, dp(10)));
+        bg.addState(new int[]{android.R.attr.state_pressed}, rounded(C_FOCUS, dp(10)));
+        bg.addState(new int[]{}, rounded(color, dp(10)));
         b.setBackground(bg);
-        if (Build.VERSION.SDK_INT >= 21) {
-            b.setStateListAnimator(null);
-        }
+
+        // YouTube-like focus: white key, slight zoom, lifted above its neighbours
+        b.setOnFocusChangeListener((v, focused) -> {
+            v.animate().scaleX(focused ? 1.08f : 1f).scaleY(focused ? 1.08f : 1f).setDuration(90).start();
+            if (Build.VERSION.SDK_INT >= 21) {
+                v.setTranslationZ(focused ? dp(8) : 0);
+            }
+        });
         b.setOnClickListener(click);
         return b;
     }
@@ -400,7 +513,8 @@ public final class InAppKeyboardDialog {
         LinearLayout row = new LinearLayout(mContext);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setWeightSum(COLS);
-        row.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(48)));
+        row.setClipChildren(false);
+        row.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, mRowH + dp(6)));
         return row;
     }
 
@@ -412,7 +526,7 @@ public final class InAppKeyboardDialog {
 
     private LinearLayout.LayoutParams weighted(float weight) {
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, weight);
-        lp.setMargins(dp(2), dp(2), dp(2), dp(2));
+        lp.setMargins(dp(3), dp(3), dp(3), dp(3));
         return lp;
     }
 
@@ -502,13 +616,13 @@ public final class InAppKeyboardDialog {
 
     private void refresh(boolean save) {
         if (mText.length() == 0) {
-            mDisplay.setTextColor(0xFF808080);
+            mDisplay.setTextColor(0xFF777777);
             mDisplay.setText(mHint.isEmpty() ? "\u2502" : mHint);
         } else {
-            mDisplay.setTextColor(Color.WHITE);
+            mDisplay.setTextColor(C_TEXT);
             SpannableStringBuilder sb = new SpannableStringBuilder(mText);
             sb.insert(mCaret, "\u2502");
-            sb.setSpan(new ForegroundColorSpan(C_ACCENT), mCaret, mCaret + 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            sb.setSpan(new ForegroundColorSpan(mAccent), mCaret, mCaret + 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
             mDisplay.setText(sb);
         }
         if (save) {
@@ -563,6 +677,10 @@ public final class InAppKeyboardDialog {
 
     // ------------------------------------------------------------------ helpers
 
+    private static Typeface medium() {
+        return Build.VERSION.SDK_INT >= 16 ? Typeface.create("sans-serif-medium", Typeface.NORMAL) : Typeface.DEFAULT_BOLD;
+    }
+
     private GradientDrawable rounded(int color, int radiusPx) {
         GradientDrawable d = new GradientDrawable();
         d.setColor(color);
@@ -571,6 +689,145 @@ public final class InAppKeyboardDialog {
     }
 
     private int dp(int v) {
-        return (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v, mContext.getResources().getDisplayMetrics());
+        return (int) (v * mDensity + 0.5f);
+    }
+
+    // ------------------------------------------------------------------ key view with vector icons
+
+    /** A key that shows either text or an icon drawn with Canvas (identical on every device, unlike font glyphs). */
+    private static final class KeyView extends TextView {
+        static final int NONE = 0;
+        static final int BACKSPACE = 1;
+        static final int SHIFT = 2;
+        static final int SEARCH = 3;
+        static final int GLOBE = 4;
+        static final int LEFT = 5;
+        static final int RIGHT = 6;
+        static final int CLOSE = 7;
+
+        private final Paint mPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Path mPath = new Path();
+        private final RectF mOval = new RectF();
+        private int mIcon = NONE;
+        private int mIconColor = Color.WHITE;
+        private int mIconColorFocused = Color.BLACK;
+        private boolean mFilled;
+        private int mTextColor = Color.WHITE;
+        private final int mTextColorFocused = C_FOCUS_TEXT;
+
+        KeyView(Context context) {
+            super(context);
+            mPaint.setStyle(Paint.Style.STROKE);
+            mPaint.setStrokeCap(Paint.Cap.ROUND);
+            mPaint.setStrokeJoin(Paint.Join.ROUND);
+            mPaint.setStrokeWidth(2f);
+        }
+
+        void setIcon(int icon, int color, int focusedColor, boolean filled) {
+            mIcon = icon;
+            mIconColor = color;
+            mIconColorFocused = focusedColor;
+            mFilled = filled;
+            invalidate();
+        }
+
+        void setNormalTextColor(int color) {
+            mTextColor = color;
+            setTextColor(new ColorStateList(
+                    new int[][]{{android.R.attr.state_focused}, {android.R.attr.state_pressed}, {}},
+                    new int[]{mTextColorFocused, mTextColorFocused, color}));
+        }
+
+        @Override
+        protected void drawableStateChanged() {
+            super.drawableStateChanged();
+            invalidate();
+        }
+
+        @Override
+        protected void onDraw(Canvas canvas) {
+            super.onDraw(canvas);
+            if (mIcon == NONE) {
+                return;
+            }
+
+            boolean hot = isFocused() || isPressed();
+            mPaint.setColor(hot ? mIconColorFocused : mIconColor);
+            mPaint.setStyle(mFilled ? Paint.Style.FILL_AND_STROKE : Paint.Style.STROKE);
+
+            // icons are designed on a 24x24 grid
+            float size = Math.min(getWidth(), getHeight()) * 0.5f;
+            float s = size / 24f;
+            canvas.save();
+            canvas.translate(getWidth() / 2f, getHeight() / 2f);
+            canvas.scale(s, s);
+            canvas.translate(-12f, -12f);
+            mPaint.setStrokeWidth(2.1f);
+            mPath.reset();
+
+            switch (mIcon) {
+                case BACKSPACE:
+                    mPaint.setStyle(Paint.Style.STROKE);
+                    mPath.moveTo(9f, 5f);
+                    mPath.lineTo(21f, 5f);
+                    mPath.lineTo(21f, 19f);
+                    mPath.lineTo(9f, 19f);
+                    mPath.lineTo(2.5f, 12f);
+                    mPath.close();
+                    canvas.drawPath(mPath, mPaint);
+                    canvas.drawLine(12.5f, 9.5f, 17.5f, 14.5f, mPaint);
+                    canvas.drawLine(17.5f, 9.5f, 12.5f, 14.5f, mPaint);
+                    break;
+                case SHIFT:
+                    mPath.moveTo(12f, 3.5f);
+                    mPath.lineTo(3.5f, 13f);
+                    mPath.lineTo(8.5f, 13f);
+                    mPath.lineTo(8.5f, 20f);
+                    mPath.lineTo(15.5f, 20f);
+                    mPath.lineTo(15.5f, 13f);
+                    mPath.lineTo(20.5f, 13f);
+                    mPath.close();
+                    canvas.drawPath(mPath, mPaint);
+                    break;
+                case SEARCH:
+                    mPaint.setStyle(Paint.Style.STROKE);
+                    mPaint.setStrokeWidth(2.4f);
+                    canvas.drawCircle(10f, 10f, 6.2f, mPaint);
+                    canvas.drawLine(14.6f, 14.6f, 20.5f, 20.5f, mPaint);
+                    break;
+                case GLOBE:
+                    mPaint.setStyle(Paint.Style.STROKE);
+                    canvas.drawCircle(12f, 12f, 8.5f, mPaint);
+                    mOval.set(7.8f, 3.5f, 16.2f, 20.5f);
+                    canvas.drawOval(mOval, mPaint);
+                    canvas.drawLine(3.5f, 12f, 20.5f, 12f, mPaint);
+                    break;
+                case LEFT:
+                    mPaint.setStyle(Paint.Style.STROKE);
+                    mPaint.setStrokeWidth(2.6f);
+                    mPath.moveTo(14.5f, 5.5f);
+                    mPath.lineTo(8f, 12f);
+                    mPath.lineTo(14.5f, 18.5f);
+                    canvas.drawPath(mPath, mPaint);
+                    break;
+                case RIGHT:
+                    mPaint.setStyle(Paint.Style.STROKE);
+                    mPaint.setStrokeWidth(2.6f);
+                    mPath.moveTo(9.5f, 5.5f);
+                    mPath.lineTo(16f, 12f);
+                    mPath.lineTo(9.5f, 18.5f);
+                    canvas.drawPath(mPath, mPaint);
+                    break;
+                case CLOSE:
+                    mPaint.setStyle(Paint.Style.STROKE);
+                    mPaint.setStrokeWidth(2.6f);
+                    canvas.drawLine(6f, 6f, 18f, 18f, mPaint);
+                    canvas.drawLine(18f, 6f, 6f, 18f, mPaint);
+                    break;
+                default:
+                    break;
+            }
+            canvas.restore();
+        }
     }
 }

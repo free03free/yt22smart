@@ -645,7 +645,7 @@ public final class IptvSection {
             sPage = Math.max(0, sPage - 1);
             redraw(context);
         } else if (key.equals(K_SEARCH)) {
-            InAppKeyboardDialog.show(context, context.getString(R.string.iptv_section_search),
+            InAppKeyboardDialog.showSearch(context, context.getString(R.string.iptv_section_search),
                     context.getString(R.string.iptv_section_search_hint),
                     sView != null && sView.startsWith(VIEW_QUERY) ? sView.substring(VIEW_QUERY.length()) : "", value -> {
                         if (value == null || value.trim().isEmpty()) {
