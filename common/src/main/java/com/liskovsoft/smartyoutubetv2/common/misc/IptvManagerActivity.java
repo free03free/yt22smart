@@ -27,6 +27,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.liskovsoft.smartyoutubetv2.common.R;
+import com.liskovsoft.smartyoutubetv2.common.utils.InAppKeyboardDialog;
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.service.IptvSection;
 import com.liskovsoft.smartyoutubetv2.common.iptv.IptvChannel;
 import com.liskovsoft.smartyoutubetv2.common.iptv.IptvHealth;
@@ -1043,21 +1044,15 @@ public class IptvManagerActivity extends Activity {
         if (mMoving) {
             return;
         }
-        final EditText field = new EditText(this);
-        field.setSingleLine(true);
-        field.setText(mFilter);
-        field.setSelection(field.getText().length());
-        new AlertDialog.Builder(this)
-                .setTitle(R.string.iptv_section_search)
-                .setView(field)
-                .setPositiveButton(android.R.string.ok, (dialog, which) -> {
-                    mFilter = field.getText().toString().trim();
+        // built-in Arabic/English keyboard: the typed text is kept even if the dialog is closed with Back
+        InAppKeyboardDialog.show(this, getString(R.string.iptv_section_search), getString(R.string.iptv_section_search_hint),
+                mFilter, text -> {
+                    mFilter = text.trim();
                     mCursor = 0;
                     mMarked.clear();
                     reload();
-                })
-                .setNegativeButton(android.R.string.cancel, null)
-                .show();
+                    return true;
+                });
     }
 
     private void confirm(String question, final Runnable action) {

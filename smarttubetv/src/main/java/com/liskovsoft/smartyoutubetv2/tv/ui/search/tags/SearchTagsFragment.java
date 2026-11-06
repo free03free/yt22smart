@@ -65,6 +65,7 @@ public class SearchTagsFragment extends SearchTagsFragmentBase {
         setupEventListeners();
         setKeyboardAutoShowEnabled(mSearchData.isKeyboardAutoShowEnabled());
         setKeyboardFixEnabled(mSearchData.isKeyboardFixEnabled());
+        setInAppKeyboardEnabled(mSearchData.isInAppKeyboardEnabled());
         setTypingCorrectionDisabled(mSearchData.isTypingCorrectionDisabled());
     }
 

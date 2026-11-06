@@ -16,6 +16,7 @@ import android.text.TextWatcher;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
+import android.view.KeyEvent;
 import android.view.View.OnFocusChangeListener;
 import android.view.ViewGroup;
 import android.view.WindowManager;
@@ -45,6 +46,7 @@ import com.liskovsoft.sharedutils.helpers.Helpers;
 import com.liskovsoft.sharedutils.helpers.KeyHelpers;
 import com.liskovsoft.sharedutils.helpers.MessageHelpers;
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.SearchPresenter;
+import com.liskovsoft.smartyoutubetv2.common.utils.InAppKeyboardDialog;
 import com.liskovsoft.smartyoutubetv2.common.utils.Utils;
 import com.liskovsoft.smartyoutubetv2.tv.BuildConfig;
 
@@ -237,6 +239,8 @@ public class SearchSupportFragment extends Fragment {
     private ExternalQuery mExternalQuery;
     private boolean mIsKeyboardAutoShowEnabled;
     private boolean mIsKeyboardFixEnabled;
+    private boolean mIsInAppKeyboardEnabled;
+    private boolean mInAppKeyboardOpen;
     private boolean mIsTypingCorrectionDisabled;
 
     private SpeechRecognizer mSpeechRecognizer;
@@ -369,7 +373,12 @@ public class SearchSupportFragment extends Fragment {
                 SearchPresenter.instance(v.getContext()).disposeActions();
             }
 
-            if (mIsKeyboardAutoShowEnabled && focused) {
+            if (mIsInAppKeyboardEnabled) {
+                // built-in keyboard: never the device keyboard
+                if (mIsKeyboardAutoShowEnabled && focused) {
+                    showInAppKeyboard();
+                }
+            } else if (mIsKeyboardAutoShowEnabled && focused) {
                 Helpers.showKeyboardAlt(v.getContext(), v);
             }
         });
@@ -403,6 +412,22 @@ public class SearchSupportFragment extends Fragment {
         }
         // BUGFIX: focus lost with keyboard???
         //mSearchTextEditor.setOnKeyboardDismissListener(this::focusOnSearchField);
+
+        // MOD: built-in Arabic/English keyboard. OK / touch on the field opens it; the device keyboard stays hidden.
+        if (mIsInAppKeyboardEnabled) {
+            mSearchTextEditor.setShowSoftInputOnFocus(false);
+            mSearchTextEditor.setOnClickListener(v -> showInAppKeyboard());
+            mSearchTextEditor.setOnKeyListener((v, keyCode, event) -> {
+                if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER
+                        || keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER) {
+                    if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
+                        showInAppKeyboard();
+                    }
+                    return true;
+                }
+                return false;
+            });
+        }
 
         // MOD: commit search button
         mSearchOrbView = mSearchBar.findViewById(com.liskovsoft.smartyoutubetv2.tv.R.id.lb_search_bar_search_orb);
@@ -834,6 +859,48 @@ public class SearchSupportFragment extends Fragment {
             getActivity().getWindow().setSoftInputMode(enable ? WindowManager.LayoutParams.SOFT_INPUT_STATE_UNSPECIFIED : WindowManager.LayoutParams.SOFT_INPUT_STATE_HIDDEN);
         }
         mIsKeyboardAutoShowEnabled = enable;
+    }
+
+    protected void setInAppKeyboardEnabled(boolean enable) {
+        mIsInAppKeyboardEnabled = enable;
+        if (enable && getActivity() != null) {
+            // the device keyboard must not pop up on start
+            getActivity().getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_HIDDEN);
+        }
+    }
+
+    /**
+     * Built-in keyboard. The text is kept as a draft after every key, so leaving with Back / Cancel loses nothing:
+     * it is put back into the search field and restored the next time the keyboard is opened.
+     */
+    private void showInAppKeyboard() {
+        if (!isAdded() || getActivity() == null || mSearchTextEditor == null || mInAppKeyboardOpen) {
+            return;
+        }
+
+        mInAppKeyboardOpen = true;
+        final boolean[] submitted = {false};
+        final Context context = getActivity();
+        final String title = context.getString(com.liskovsoft.smartyoutubetv2.common.R.string.inapp_kb_search_title);
+
+        InAppKeyboardDialog.show(context, title, title, getSearchBarText(), text -> {
+            String query = text == null ? "" : text.trim();
+            if (!query.isEmpty()) {
+                submitted[0] = true;
+                setSearchQuery(query, true);
+            }
+            return true;
+        }, () -> {
+            mInAppKeyboardOpen = false;
+            if (!submitted[0] && isAdded() && mSearchBar != null && mSearchTextEditor != null) {
+                // closed without searching: keep what was typed in the field
+                String draft = InAppKeyboardDialog.getDraft(context, title);
+                if (!TextUtils.isEmpty(draft)) {
+                    mSearchBar.setSearchQuery(draft);
+                    mSearchTextEditor.setSelection(mSearchTextEditor.getText().length());
+                }
+            }
+        });
     }
 
     protected void setKeyboardFixEnabled(boolean enable) {

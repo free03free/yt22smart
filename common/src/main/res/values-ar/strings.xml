@@ -1510,4 +1510,7 @@
     <string name="dl_apps_delete">حذف</string>
     <string name="custom_update_hide">إخفاء</string>
     <string name="custom_update_background">يستمر تحميل التحديث في الخلفية</string>
+    <string name="inapp_kb_clear">مسح</string>
+    <string name="inapp_kb_enable">الكيبورد المدمج (عربي / إنجليزي)</string>
+    <string name="inapp_kb_search_title">بحث</string>
 </resources>

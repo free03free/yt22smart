@@ -18,7 +18,7 @@ import com.liskovsoft.smartyoutubetv2.common.iptv.IptvUrls;
 import com.liskovsoft.smartyoutubetv2.common.iptv.StalkerAccount;
 import com.liskovsoft.smartyoutubetv2.common.iptv.StalkerFailure;
 import com.liskovsoft.smartyoutubetv2.common.iptv.StalkerProbe;
-import com.liskovsoft.smartyoutubetv2.common.utils.SimpleEditDialog;
+import com.liskovsoft.smartyoutubetv2.common.utils.InAppKeyboardDialog;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -167,7 +167,7 @@ public final class IptvPortalPickerPresenter {
                         : context.getString(R.string.iptv_pick_filtered, visible.size(), s.items.size()) + "  [" + s.filter + "]",
                 option -> {
                     d.closeDialog();
-                    SimpleEditDialog.show(context, context.getString(R.string.iptv_pick_search),
+                    InAppKeyboardDialog.show(context, context.getString(R.string.iptv_pick_search),
                             context.getString(R.string.iptv_pick_search_hint), s.filter, value -> {
                                 s.filter = value == null ? "" : value.trim();
                                 s.page = 0;

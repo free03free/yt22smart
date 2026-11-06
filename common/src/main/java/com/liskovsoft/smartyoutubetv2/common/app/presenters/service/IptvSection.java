@@ -38,6 +38,7 @@ import com.liskovsoft.smartyoutubetv2.common.iptv.StalkerLink;
 import com.liskovsoft.smartyoutubetv2.common.misc.IptvManagerActivity;
 import com.liskovsoft.smartyoutubetv2.common.misc.IptvPlayerActivity;
 import com.liskovsoft.smartyoutubetv2.common.utils.AppDialogUtil;
+import com.liskovsoft.smartyoutubetv2.common.utils.InAppKeyboardDialog;
 import com.liskovsoft.smartyoutubetv2.common.utils.SimpleEditDialog;
 
 import java.io.IOException;
@@ -644,8 +645,9 @@ public final class IptvSection {
             sPage = Math.max(0, sPage - 1);
             redraw(context);
         } else if (key.equals(K_SEARCH)) {
-            SimpleEditDialog.show(context, context.getString(R.string.iptv_section_search),
-                    context.getString(R.string.iptv_section_search_hint), "", value -> {
+            InAppKeyboardDialog.show(context, context.getString(R.string.iptv_section_search),
+                    context.getString(R.string.iptv_section_search_hint),
+                    sView != null && sView.startsWith(VIEW_QUERY) ? sView.substring(VIEW_QUERY.length()) : "", value -> {
                         if (value == null || value.trim().isEmpty()) {
                             return false;
                         }

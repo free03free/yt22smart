@@ -24,6 +24,7 @@ public class SearchData {
     private boolean mIsPopularSearchesDisabled;
     private boolean mIsKeyboardFixEnabled;
     private boolean mIsTypingCorrectionDisabled;
+    private boolean mIsInAppKeyboardEnabled;
 
     private SearchData(Context context) {
         mAppPrefs = AppPrefs.instance(context);
@@ -71,6 +72,16 @@ public class SearchData {
 
     public void setKeyboardAutoShowEnabled(boolean enabled) {
         mIsKeyboardAutoShowEnabled = enabled;
+        persistData();
+    }
+
+    /** Built-in Arabic/English keyboard instead of the device keyboard (the typed text is never lost). */
+    public boolean isInAppKeyboardEnabled() {
+        return mIsInAppKeyboardEnabled;
+    }
+
+    public void setInAppKeyboardEnabled(boolean enabled) {
+        mIsInAppKeyboardEnabled = enabled;
         persistData();
     }
 
@@ -165,6 +176,7 @@ public class SearchData {
         mIsPopularSearchesDisabled = Helpers.parseBoolean(split, 9, false);
         mIsKeyboardFixEnabled = Helpers.parseBoolean(split, 10, false);
         mIsTypingCorrectionDisabled = Helpers.parseBoolean(split, 11, false);
+        mIsInAppKeyboardEnabled = Helpers.parseBoolean(split, 12, true);
     }
 
     private void persistData() {
@@ -172,6 +184,6 @@ public class SearchData {
                 Helpers.mergeData(mIsInstantVoiceSearchEnabled, mSearchOptions, mIsFocusOnResultsEnabled,
                         mIsKeyboardAutoShowEnabled, mIsTempBackgroundModeEnabled, null, mSpeechRecognizerType,
                         mIsTrendingSearchesEnabled, mIsSearchHistoryDisabled, mIsPopularSearchesDisabled,
-                        mIsKeyboardFixEnabled, mIsTypingCorrectionDisabled));
+                        mIsKeyboardFixEnabled, mIsTypingCorrectionDisabled, mIsInAppKeyboardEnabled));
     }
 }
