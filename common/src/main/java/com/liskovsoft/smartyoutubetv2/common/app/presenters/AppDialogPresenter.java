@@ -137,6 +137,25 @@ public class AppDialogPresenter extends BasePresenter<AppDialogView> {
         setupTimeout();
     }
 
+    /**
+     * The activity that hosts the currently shown dialog (null if the dialog isn't created yet).
+     * Lets callers attach helper views to the dialog's own window instead of opening a second window.
+     */
+    public android.app.Activity getDialogActivity() {
+        Object view = getView();
+        if (view == null) {
+            return null;
+        }
+
+        try {
+            // Works for both framework and support Fragment implementations
+            Object activity = view.getClass().getMethod("getActivity").invoke(view);
+            return activity instanceof android.app.Activity ? (android.app.Activity) activity : null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     public void closeDialog() {
         if (getView() != null) {
             getView().finish();

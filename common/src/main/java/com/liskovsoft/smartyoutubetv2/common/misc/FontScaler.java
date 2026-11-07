@@ -104,7 +104,7 @@ public final class FontScaler {
         applyColorAndStyle(tv, c);
     }
 
-    private static void applyColorAndStyle(TextView tv, Category c) {
+    static void applyColorAndStyle(TextView tv, Category c) {
         Context ctx = tv.getContext();
 
         // Color (0 = original). Focus/selected/pressed states use the accent color (or the original focus colors).

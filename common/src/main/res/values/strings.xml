@@ -104,13 +104,6 @@
     <string name="ap_export_done">Style copied. Paste it in a note or message to keep or share it</string>
     <string name="ap_import_done">Style imported</string>
     <string name="ap_import_bad">The clipboard does not contain a valid style</string>
-    <string name="ap_preview">Preview (sample row, card, button, player time)</string>
-    <string name="ap_prev_row">Row title</string>
-    <string name="ap_prev_title">Sample video title that may be long enough to wrap</string>
-    <string name="ap_prev_info">Channel name • 1.2M views • 2 days ago</string>
-    <string name="ap_prev_button">Button</string>
-    <string name="ap_prev_time">00:12 / 05:40</string>
-    <string name="ap_prev_quality">1080p60 • VP9</string>
     <string name="ap_title">Advanced appearance</string>
     <string name="ap_dialog">Advanced appearance: fonts, colors, backgrounds</string>
     <string name="ap_presets">Ready-made styles (applies at once)</string>
@@ -133,6 +126,9 @@
     <string name="ap_k_weight">Weight</string>
     <string name="ap_k_font">Font type</string>
     <string name="ap_k_color">Color</string>
+    <string name="ap_prev_caption">Preview</string>
+    <string name="ap_prev_normal">Normal text</string>
+    <string name="ap_prev_focused">Selected / focused text</string>
     <string name="ap_w_default">Original</string>
     <string name="ap_w_light">Light</string>
     <string name="ap_w_regular">Regular</string>

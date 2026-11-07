@@ -1,21 +1,15 @@
 package com.liskovsoft.smartyoutubetv2.common.app.presenters.settings;
 
 import android.app.Activity;
-import android.app.Dialog;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
-import android.graphics.Color;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.TextUtils;
 import android.text.SpannableString;
 import android.text.Spanned;
 import android.text.style.ForegroundColorSpan;
-import android.util.TypedValue;
-import android.view.Gravity;
-import android.widget.LinearLayout;
-import android.widget.TextView;
 
 import com.liskovsoft.sharedutils.helpers.Helpers;
 import com.liskovsoft.sharedutils.helpers.MessageHelpers;
@@ -26,6 +20,7 @@ import com.liskovsoft.smartyoutubetv2.common.app.presenters.AppDialogPresenter;
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.base.BasePresenter;
 import com.liskovsoft.smartyoutubetv2.common.misc.AppearanceFonts;
 import com.liskovsoft.smartyoutubetv2.common.misc.AppearancePrefs;
+import com.liskovsoft.smartyoutubetv2.common.misc.AppearancePreview;
 import com.liskovsoft.smartyoutubetv2.common.misc.AppearanceStyle;
 import com.liskovsoft.smartyoutubetv2.common.misc.FontScaler;
 import com.liskovsoft.smartyoutubetv2.common.misc.FontScaler.Category;
@@ -54,6 +49,8 @@ public class AppearanceSettingsPresenter extends BasePresenter<Void> {
     private final Handler mHandler = new Handler(Looper.getMainLooper());
     private boolean mRestartApp;
     private boolean mForward;
+    private boolean mPreviewEnabled;
+    private Category[] mPreviewTargets;
 
     private AppearanceSettingsPresenter(Context context) {
         super(context);
@@ -69,6 +66,7 @@ public class AppearanceSettingsPresenter extends BasePresenter<Void> {
     /** Opens a deeper screen from a button: closes the current one without returning to its parent */
     private void go(Runnable screen) {
         mForward = true;
+        mPreviewEnabled = false;
         AppDialogPresenter.instance(getContext()).closeDialog();
         mHandler.post(screen);
     }
@@ -80,6 +78,7 @@ public class AppearanceSettingsPresenter extends BasePresenter<Void> {
                 mForward = false;
                 return;
             }
+            mPreviewEnabled = false;
             if (mRestartApp) {
                 mRestartApp = false;
                 MessageHelpers.showLongMessage(getContext(), R.string.ap_note_restart);
@@ -100,7 +99,6 @@ public class AppearanceSettingsPresenter extends BasePresenter<Void> {
     public void show() {
         AppDialogPresenter d = AppDialogPresenter.instance(getContext());
 
-        appendPreview(d);
         button(d, R.string.ap_hub_titles, R.string.ap_hub_titles_d, this::showTitles);
         button(d, R.string.ap_hub_element, R.string.ap_hub_element_d, this::showElements);
         button(d, R.string.ap_hub_all, R.string.ap_hub_all_d, this::showAll);
@@ -113,16 +111,16 @@ public class AppearanceSettingsPresenter extends BasePresenter<Void> {
 
     private void showTitles() {
         AppDialogPresenter d = AppDialogPresenter.instance(getContext());
-        appendPreview(d);
         appendGroup(d, TITLES);
+        previewFor(d, TITLES);
         d.showDialog(getContext().getString(R.string.ap_hub_titles), backTo(this::show));
     }
 
     private void showAll() {
         AppDialogPresenter d = AppDialogPresenter.instance(getContext());
-        appendPreview(d);
         appendGlobalFontScale(d);
         appendGroup(d, Category.values());
+        previewFor(d, Category.values());
         d.showDialog(getContext().getString(R.string.ap_hub_all), backTo(this::show));
     }
 
@@ -139,8 +137,8 @@ public class AppearanceSettingsPresenter extends BasePresenter<Void> {
 
     private void showElement(Category category) {
         AppDialogPresenter d = AppDialogPresenter.instance(getContext());
-        appendPreview(d);
         appendGroup(d, new Category[] {category});
+        previewFor(d, new Category[] {category});
         d.showDialog(getContext().getString(category.titleResId), backTo(this::showElements));
     }
 
@@ -149,6 +147,7 @@ public class AppearanceSettingsPresenter extends BasePresenter<Void> {
         appendPresets(d);
         appendSlots(d);
         appendTransfer(d);
+        previewFor(d, Category.values());
         d.showDialog(getContext().getString(R.string.ap_hub_styles), backTo(this::show));
     }
 
@@ -156,6 +155,7 @@ public class AppearanceSettingsPresenter extends BasePresenter<Void> {
         AppDialogPresenter d = AppDialogPresenter.instance(getContext());
         appendBackground(d);
         appendAccent(d);
+        previewFor(d, null);
         d.showDialog(getContext().getString(R.string.ap_hub_colors), backTo(this::show));
     }
 
@@ -207,6 +207,7 @@ public class AppearanceSettingsPresenter extends BasePresenter<Void> {
             options.add(UiOptionItem.from(getContext().getString(PRESET_NAMES[i]),
                     optionItem -> {
                         applyPreset(preset);
+                        updatePreview();
                         MessageHelpers.showMessage(getContext(), R.string.ap_preset_applied);
                     }, false));
         }
@@ -242,6 +243,7 @@ public class AppearanceSettingsPresenter extends BasePresenter<Void> {
                         for (Category target : targets) {
                             mMainUIData.setFontScale(target, scale);
                         }
+                        updatePreview();
                     }, selected));
         }
 
@@ -262,6 +264,7 @@ public class AppearanceSettingsPresenter extends BasePresenter<Void> {
                         for (Category target : targets) {
                             AppearancePrefs.setWeight(getContext(), target, weight);
                         }
+                        updatePreview();
                     }, selected));
         }
 
@@ -283,6 +286,7 @@ public class AppearanceSettingsPresenter extends BasePresenter<Void> {
                         for (Category target : targets) {
                             AppearancePrefs.setFont(getContext(), target, key);
                         }
+                        updatePreview();
                     }, selected));
         }
 
@@ -303,6 +307,7 @@ public class AppearanceSettingsPresenter extends BasePresenter<Void> {
                         for (Category target : targets) {
                             AppearancePrefs.setTextColor(getContext(), target, color);
                         }
+                        updatePreview();
                     }, selected));
         }
 
@@ -315,7 +320,10 @@ public class AppearanceSettingsPresenter extends BasePresenter<Void> {
         for (int i = 0; i < BG_VALUES.length; i++) {
             final int color = BG_VALUES[i];
             options.add(UiOptionItem.from(swatch(getContext().getString(BG_NAMES[i]), color),
-                    optionItem -> AppearancePrefs.setBackground(getContext(), color),
+                    optionItem -> {
+                        AppearancePrefs.setBackground(getContext(), color);
+                        updatePreview();
+                    },
                     AppearancePrefs.getBackground(getContext()) == color));
         }
 
@@ -328,7 +336,10 @@ public class AppearanceSettingsPresenter extends BasePresenter<Void> {
         for (int i = 0; i < COLOR_VALUES.length; i++) {
             final int color = COLOR_VALUES[i];
             options.add(UiOptionItem.from(swatch(getContext().getString(COLOR_NAMES[i]), color),
-                    optionItem -> AppearancePrefs.setAccent(getContext(), color),
+                    optionItem -> {
+                        AppearancePrefs.setAccent(getContext(), color);
+                        updatePreview();
+                    },
                     AppearancePrefs.getAccent(getContext()) == color));
         }
 
@@ -368,6 +379,7 @@ public class AppearanceSettingsPresenter extends BasePresenter<Void> {
             if (saved != null) {
                 load.add(UiOptionItem.from(title, optionItem -> {
                     if (AppearanceStyle.apply(getContext(), AppearanceStyle.getSlot(getContext(), slot))) {
+                        updatePreview();
                         MessageHelpers.showMessage(getContext(), R.string.ap_slot_loaded);
                     }
                 }, false));
@@ -395,6 +407,7 @@ public class AppearanceSettingsPresenter extends BasePresenter<Void> {
             CharSequence text = clip != null && clip.getItemCount() > 0 ? clip.getItemAt(0).coerceToText(getContext()) : null;
 
             if (text != null && AppearanceStyle.apply(getContext(), text.toString())) {
+                updatePreview();
                 MessageHelpers.showMessage(getContext(), R.string.ap_import_done);
             } else {
                 MessageHelpers.showMessage(getContext(), R.string.ap_import_bad);
@@ -402,54 +415,36 @@ public class AppearanceSettingsPresenter extends BasePresenter<Void> {
         }));
     }
 
-    private void appendPreview(AppDialogPresenter settingsPresenter) {
-        settingsPresenter.appendSingleButton(UiOptionItem.from(getContext().getString(R.string.ap_preview), optionItem -> showPreview()));
+    // ------------------------------------------------------------------ live preview
+
+    /**
+     * Shows the preview strip inside the settings window once it is created.
+     * @param targets elements to show, or null to show the background and highlight colors
+     */
+    private void previewFor(AppDialogPresenter d, Category[] targets) {
+        mPreviewTargets = targets;
+        mPreviewEnabled = true;
+        d.setOnStart(this::updatePreview);
     }
 
-    /** A small window with sample texts that use the same view ids as the real screens, so every option applies to them */
-    private void showPreview() {
-        if (!(getContext() instanceof Activity)) {
+    /** Redraws the strip after an option was changed */
+    private void updatePreview() {
+        if (!mPreviewEnabled) {
             return;
         }
 
-        Activity activity = (Activity) getContext();
-        LinearLayout root = new LinearLayout(activity);
-        root.setOrientation(LinearLayout.VERTICAL);
-        int pad = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 16, activity.getResources().getDisplayMetrics());
-        root.setPadding(pad, pad, pad, pad);
-        int bg = AppearancePrefs.getBackground(activity);
-        root.setBackgroundColor(bg != 0 ? bg : 0xFF1E1E1E);
-
-        addSample(root, "row_header", R.string.ap_prev_row, 20);
-        addSample(root, "title_text", R.string.ap_prev_title, 16);
-        addSample(root, "content_text", R.string.ap_prev_info, 13);
-        addSample(root, "lb_action_button", R.string.ap_prev_button, 15);
-        addSample(root, "current_time", R.string.ap_prev_time, 14);
-        addSample(root, "quality_info", R.string.ap_prev_quality, 12);
-
-        FontScaler.applyToTree(activity, root);
-
-        Dialog dialog = new Dialog(activity);
-        dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
-        dialog.setContentView(root);
-        dialog.show();
-    }
-
-    private void addSample(LinearLayout root, String idName, int textRes, int sp) {
-        TextView tv = new TextView(root.getContext());
-        tv.setId(root.getResources().getIdentifier(idName, "id", root.getContext().getPackageName()));
-        tv.setText(textRes);
-        tv.setTextColor(Color.WHITE);
-        tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp);
-        tv.setGravity(Gravity.START);
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        lp.topMargin = 12;
-        root.addView(tv, lp);
+        Activity activity = AppDialogPresenter.instance(getContext()).getDialogActivity();
+        if (mPreviewTargets == null) {
+            AppearancePreview.showColors(activity);
+        } else {
+            AppearancePreview.showElements(activity, mPreviewTargets);
+        }
     }
 
     private void appendReset(AppDialogPresenter settingsPresenter) {
         settingsPresenter.appendSingleButton(UiOptionItem.from(getContext().getString(R.string.ap_reset), optionItem -> {
             resetAll();
+            updatePreview();
             MessageHelpers.showMessage(getContext(), R.string.ap_reset_done);
         }));
     }

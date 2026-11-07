@@ -97,13 +97,6 @@
   <string name="ap_export_done">تم النسخ. الصقه في ملاحظة أو رسالة لحفظه أو مشاركته</string>
   <string name="ap_import_done">تم استيراد النمط</string>
   <string name="ap_import_bad">الحافظة لا تحتوي نمطًا صالحًا</string>
-  <string name="ap_preview">معاينة (صف وبطاقة وزر ووقت المشغّل)</string>
-  <string name="ap_prev_row">عنوان صف</string>
-  <string name="ap_prev_title">عنوان فيديو تجريبي قد يكون طويلاً بما يكفي للالتفاف</string>
-  <string name="ap_prev_info">اسم القناة • 1.2 مليون مشاهدة • قبل يومين</string>
-  <string name="ap_prev_button">زر</string>
-  <string name="ap_prev_time">00:12 / 05:40</string>
-  <string name="ap_prev_quality">1080p60 • VP9</string>
   <string name="ap_title">المظهر المتقدم</string>
   <string name="ap_dialog">المظهر المتقدم: الخطوط والألوان والخلفيات</string>
   <string name="ap_presets">أنماط جاهزة (تُطبَّق فورًا)</string>
@@ -126,6 +119,9 @@
   <string name="ap_k_weight">السماكة</string>
   <string name="ap_k_font">نوع الخط</string>
   <string name="ap_k_color">اللون</string>
+  <string name="ap_prev_caption">معاينة</string>
+  <string name="ap_prev_normal">نص عادي</string>
+  <string name="ap_prev_focused">نص محدد (عند التركيز)</string>
   <string name="ap_w_default">الأصلي</string>
   <string name="ap_w_light">خفيف</string>
   <string name="ap_w_regular">عادي</string>
