@@ -61,7 +61,6 @@ public final class InAppKeyboardDialog {
     private static final int LAYER_AR = 1;
     private static final int LAYER_SYM = 2;
 
-    private static final float COLS = 12f;
 
     // YouTube-TV like palette
     private static final int C_SHEET = 0xFF212121;
@@ -81,7 +80,7 @@ public final class InAppKeyboardDialog {
     private static final String[][] EN = {
             {"q", "w", "e", "r", "t", "y", "u", "i", "o", "p"},
             {"a", "s", "d", "f", "g", "h", "j", "k", "l", "'"},
-            {"z", "x", "c", "v", "b", "n", "m", ",", "."}
+            {"z", "x", "c", "v", "b", "n", "m"}
     };
 
     private static final String[][] AR = {
@@ -113,6 +112,8 @@ public final class InAppKeyboardDialog {
     private final float mDensity;
     private final int mAccent;
     private int mRowH;
+    private float mCols = 10f;
+    private int mPanelWidth;
     private int mCaret;
     private int mLetters;   // LAYER_EN or LAYER_AR: the last letters layout used
     private int mLayer;     // what is shown now
@@ -203,9 +204,8 @@ public final class InAppKeyboardDialog {
         mDialog.show();
 
         if (window != null) {
-            DisplayMetrics dm = mContext.getResources().getDisplayMetrics();
-            int width = (int) Math.min(dm.widthPixels, dp(1100));
-            window.setLayout(width, ViewGroup.LayoutParams.WRAP_CONTENT);
+            DisplayMetrics dm = screenMetrics();
+            window.setLayout(mPanelWidth > 0 ? mPanelWidth : dm.widthPixels, ViewGroup.LayoutParams.WRAP_CONTENT);
         }
 
         View space = mKeys.findViewWithTag("space");
@@ -215,22 +215,28 @@ public final class InAppKeyboardDialog {
     }
 
     private View buildRoot() {
-        DisplayMetrics dm = mContext.getResources().getDisplayMetrics();
-        float heightDp = dm.heightPixels / dm.density;
+        DisplayMetrics dm = screenMetrics();
+        float heightDp = dm.heightPixels / mDensity;
+        float widthDp = Math.min(dm.widthPixels / mDensity, 1100f);
         boolean leanback = isLeanback();
-        boolean titleRow = !mSearchStyle || !leanback;
+        boolean titleRow = !mSearchStyle;
+        int navPx = (!leanback && dm.heightPixels > dm.widthPixels) ? navigationBarHeight() : 0;
 
-        // keys get as tall as the screen allows (720p TV is only ~360dp high)
-        float fixed = 30 + 56 + 10 + (titleRow ? 34 : 0);
-        float rowDp = (heightDp * 0.92f - fixed) / 5f - 6f;
-        rowDp = Math.max(34f, Math.min(56f, rowDp));
+        // keys get as tall as the screen allows (720p TV / landscape phone is only ~360dp high) ...
+        float fixed = 30 + 68 + (titleRow ? 34 : 0) + navPx / mDensity;
+        float rowDp = (heightDp * 0.94f - fixed) / 5f - 6f;
+        // ... but never taller than they are wide (12 columns in portrait are narrow)
+        float keyWidthDp = (widthDp - 36f) / 12f;
+        rowDp = Math.max(30f, Math.min(Math.min(56f, keyWidthDp * 1.45f), rowDp));
         mRowH = dp(Math.round(rowDp));
+        // on wide screens keep the keys close to square instead of stretching the sheet edge to edge
+        mPanelWidth = Math.min(dm.widthPixels, dp(Math.round(Math.min(1100f, rowDp * 1.6f * 12f + 36f))));
 
         LinearLayout root = new LinearLayout(mContext);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setClipChildren(false);
         root.setClipToPadding(false);
-        root.setPadding(dp(18), dp(14), dp(18), dp(16));
+        root.setPadding(dp(18), dp(14), dp(18), dp(16) + navPx);
         GradientDrawable sheet = new GradientDrawable();
         sheet.setColor(C_SHEET);
         float r = dp(22);
@@ -303,6 +309,31 @@ public final class InAppKeyboardDialog {
         return root;
     }
 
+    /** Current display size - follows rotation (the app resources may still report the old orientation). */
+    private DisplayMetrics screenMetrics() {
+        DisplayMetrics dm = new DisplayMetrics();
+        try {
+            WindowManager wm = (WindowManager) mContext.getSystemService(Context.WINDOW_SERVICE);
+            wm.getDefaultDisplay().getMetrics(dm);
+            if (dm.widthPixels > 0 && dm.heightPixels > 0) {
+                return dm;
+            }
+        } catch (RuntimeException e) {
+            // fall through
+        }
+        return mContext.getResources().getDisplayMetrics();
+    }
+
+    /** The app draws under the translucent system navigation bar, so keep the bottom row above it. */
+    private int navigationBarHeight() {
+        try {
+            int id = mContext.getResources().getIdentifier("navigation_bar_height", "dimen", "android");
+            return id > 0 ? mContext.getResources().getDimensionPixelSize(id) : 0;
+        } catch (RuntimeException e) {
+            return 0;
+        }
+    }
+
     private boolean isLeanback() {
         try {
             return mContext.getPackageManager().hasSystemFeature("android.software.leanback");
@@ -339,6 +370,7 @@ public final class InAppKeyboardDialog {
 
     private void buildKeys() {
         mKeys.removeAllViews();
+        mCols = mLayer == LAYER_AR ? 12f : 10f;
 
         // digits row (all layers)
         mKeys.addView(row(DIGITS, 0, 0, false));
@@ -350,7 +382,7 @@ public final class InAppKeyboardDialog {
                 mKeys.addView(row(rows[r], 0, 0, false));
                 continue;
             }
-            float free = COLS - rows[r].length;
+            float free = mCols - rows[r].length;
             if (mLayer == LAYER_SYM) {
                 mKeys.addView(row(rows[r], 0, free, true));
             } else {
@@ -377,9 +409,11 @@ public final class InAppKeyboardDialog {
             row.addView(shift, weighted(shiftWeight));
             used += shiftWeight;
         }
+        // rows without shift/backspace stretch to the full width (digits get wider keys on the 12-column layout)
+        float keyWeight = withBackspace ? 1f : mCols / chars.length;
         for (final String c : chars) {
-            row.addView(charKey(c), weighted(1f));
-            used += 1f;
+            row.addView(charKey(c), weighted(keyWeight));
+            used += keyWeight;
         }
         if (withBackspace) {
             KeyView back = key("", KeyView.BACKSPACE, C_KEY_SPECIAL, v -> backspace());
@@ -390,16 +424,12 @@ public final class InAppKeyboardDialog {
             row.addView(back, weighted(backWeight));
             used += backWeight;
         }
-        if (!withBackspace && used < COLS) { // centre short rows
-            float gap = (COLS - used) / 2f;
-            row.addView(spacer(), 0, weighted(gap));
-            row.addView(spacer(), weighted(gap));
-        }
         return row;
     }
 
     private LinearLayout bottomRow() {
         LinearLayout row = newRow();
+        final float k = mCols / 12f;
 
         String lettersLabel = mLetters == LAYER_AR ? "\u0623\u0628\u062C" : "ABC";
         KeyView sym = key(mLayer == LAYER_SYM ? lettersLabel : "123", KeyView.NONE, C_KEY_SPECIAL, v -> {
@@ -409,7 +439,7 @@ public final class InAppKeyboardDialog {
         });
         sym.setTag("sym");
         sym.setTextSize(TypedValue.COMPLEX_UNIT_DIP, textDp() * 0.8f);
-        row.addView(sym, weighted(1.5f));
+        row.addView(sym, weighted(1.5f * k));
 
         KeyView lang = key("", KeyView.GLOBE, C_KEY_SPECIAL, v -> {
             mLetters = mLetters == LAYER_EN ? LAYER_AR : LAYER_EN;
@@ -419,9 +449,9 @@ public final class InAppKeyboardDialog {
             rebuild("lang");
         });
         lang.setTag("lang");
-        row.addView(lang, weighted(1.5f));
+        row.addView(lang, weighted(1.5f * k));
 
-        row.addView(key("", KeyView.LEFT, C_KEY_SPECIAL, v -> moveCaret(-1)), weighted(1f));
+        row.addView(key("", KeyView.LEFT, C_KEY_SPECIAL, v -> moveCaret(-1)), weighted(1f * k));
 
         // space bar shows the current language, like the YouTube keyboard
         String langName = mLayer == LAYER_SYM ? "" : (mLetters == LAYER_AR ? "\u0627\u0644\u0639\u0631\u0628\u064A\u0629" : "English");
@@ -429,9 +459,9 @@ public final class InAppKeyboardDialog {
         space.setTag("space");
         space.setTextSize(TypedValue.COMPLEX_UNIT_DIP, textDp() * 0.7f);
         space.setNormalTextColor(C_TEXT_DIM);
-        row.addView(space, weighted(3.5f));
+        row.addView(space, weighted(3.5f * k));
 
-        row.addView(key("", KeyView.RIGHT, C_KEY_SPECIAL, v -> moveCaret(1)), weighted(1f));
+        row.addView(key("", KeyView.RIGHT, C_KEY_SPECIAL, v -> moveCaret(1)), weighted(1f * k));
 
         KeyView clear = key(mContext.getString(R.string.inapp_kb_clear), KeyView.NONE, C_KEY_SPECIAL, v -> {
             mText.setLength(0);
@@ -439,7 +469,7 @@ public final class InAppKeyboardDialog {
             refresh(true);
         });
         clear.setTextSize(TypedValue.COMPLEX_UNIT_DIP, textDp() * 0.7f);
-        row.addView(clear, weighted(1.75f));
+        row.addView(clear, weighted(1.75f * k));
 
         // action key in the accent colour: magnifier for search, text otherwise
         KeyView ok = mSearchStyle
@@ -452,7 +482,7 @@ public final class InAppKeyboardDialog {
         } else {
             ok.setTextSize(TypedValue.COMPLEX_UNIT_DIP, textDp() * 0.75f);
         }
-        row.addView(ok, weighted(1.75f));
+        row.addView(ok, weighted(1.75f * k));
         return row;
     }
 
@@ -493,9 +523,9 @@ public final class InAppKeyboardDialog {
         b.setIcon(icon, C_TEXT, C_FOCUS_TEXT, false);
 
         StateListDrawable bg = new StateListDrawable();
-        bg.addState(new int[]{android.R.attr.state_focused}, rounded(C_FOCUS, dp(10)));
-        bg.addState(new int[]{android.R.attr.state_pressed}, rounded(C_FOCUS, dp(10)));
-        bg.addState(new int[]{}, rounded(color, dp(10)));
+        bg.addState(new int[]{android.R.attr.state_focused}, rounded(C_FOCUS, dp(8)));
+        bg.addState(new int[]{android.R.attr.state_pressed}, rounded(C_FOCUS, dp(8)));
+        bg.addState(new int[]{}, rounded(color, dp(8)));
         b.setBackground(bg);
 
         // YouTube-like focus: white key, slight zoom, lifted above its neighbours
@@ -512,16 +542,10 @@ public final class InAppKeyboardDialog {
     private LinearLayout newRow() {
         LinearLayout row = new LinearLayout(mContext);
         row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setWeightSum(COLS);
+        row.setWeightSum(mCols);
         row.setClipChildren(false);
         row.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, mRowH + dp(6)));
         return row;
-    }
-
-    private View spacer() {
-        View v = new View(mContext);
-        v.setFocusable(false);
-        return v;
     }
 
     private LinearLayout.LayoutParams weighted(float weight) {
@@ -759,6 +783,7 @@ public final class InAppKeyboardDialog {
             float size = Math.min(getWidth(), getHeight()) * 0.5f;
             float s = size / 24f;
             canvas.save();
+            canvas.translate(getScrollX(), getScrollY()); // TextView scrolls its own content; undo it
             canvas.translate(getWidth() / 2f, getHeight() / 2f);
             canvas.scale(s, s);
             canvas.translate(-12f, -12f);
