@@ -128,7 +128,63 @@ public final class AppearancePrefs {
         java.util.Arrays.fill(sFont, "");
         sBackground = 0;
         sAccent = 0;
-        prefs(context).edit().clear().apply();
+        // The preview window settings are not part of a style: they survive a reset
+        SharedPreferences prefs = prefs(context);
+        SharedPreferences.Editor editor = prefs.edit().clear();
+        for (String key : PREVIEW_KEYS) {
+            if (prefs.contains(key)) {
+                editor.putInt(key, prefs.getInt(key, 0));
+            }
+        }
+        if (prefs.contains(PREVIEW_CUSTOM_TEXT)) {
+            editor.putString(PREVIEW_CUSTOM_TEXT, prefs.getString(PREVIEW_CUSTOM_TEXT, ""));
+        }
+        editor.apply();
+    }
+
+    // ------------------------------------------------------------------ preview window settings
+
+    public static final String PREVIEW_ENABLED = "preview_enabled";   // 1 = shown, 0 = hidden
+    public static final String PREVIEW_POSITION = "preview_position"; // 0 = bottom, 1 = top, 2 = auto (away from the focused option)
+    public static final String PREVIEW_SIZE = "preview_size";         // 0 = compact, 1 = normal, 2 = large
+    public static final String PREVIEW_ALIGN = "preview_align";       // 0 = left, 1 = center, 2 = right
+    public static final String PREVIEW_TEXT = "preview_text";         // 0 = element name, 1 = sample sentence, 2 = custom text
+    public static final String PREVIEW_COMPARE = "preview_compare";   // 1 = show the original next to the current style
+    public static final String PREVIEW_OPACITY = "preview_opacity";   // percent: 100, 85, 70
+    private static final String PREVIEW_CUSTOM_TEXT = "preview_custom_text";
+    private static final String[] PREVIEW_KEYS = {PREVIEW_ENABLED, PREVIEW_POSITION, PREVIEW_SIZE, PREVIEW_ALIGN, PREVIEW_TEXT,
+            PREVIEW_COMPARE, PREVIEW_OPACITY};
+
+    public static int getPreviewOption(Context context, String key) {
+        int def = 0;
+        switch (key) {
+            case PREVIEW_ENABLED:
+                def = 1;
+                break;
+            case PREVIEW_ALIGN:
+            case PREVIEW_SIZE:
+                def = 1;
+                break;
+            case PREVIEW_OPACITY:
+                def = 100;
+                break;
+            default:
+                break;
+        }
+        return prefs(context).getInt(key, def);
+    }
+
+    /** Text typed by the user for the preview window (empty if none) */
+    public static String getPreviewCustomText(Context context) {
+        return prefs(context).getString(PREVIEW_CUSTOM_TEXT, "");
+    }
+
+    public static void setPreviewCustomText(Context context, String text) {
+        prefs(context).edit().putString(PREVIEW_CUSTOM_TEXT, text == null ? "" : text.trim()).apply();
+    }
+
+    public static void setPreviewOption(Context context, String key, int value) {
+        prefs(context).edit().putInt(key, value).apply();
     }
 
     private static SharedPreferences prefs(Context context) {

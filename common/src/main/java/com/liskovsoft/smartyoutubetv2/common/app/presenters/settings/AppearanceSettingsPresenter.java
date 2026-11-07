@@ -25,6 +25,7 @@ import com.liskovsoft.smartyoutubetv2.common.misc.AppearanceStyle;
 import com.liskovsoft.smartyoutubetv2.common.misc.FontScaler;
 import com.liskovsoft.smartyoutubetv2.common.misc.FontScaler.Category;
 import com.liskovsoft.smartyoutubetv2.common.prefs.MainUIData;
+import com.liskovsoft.smartyoutubetv2.common.utils.InAppKeyboardDialog;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -104,6 +105,7 @@ public class AppearanceSettingsPresenter extends BasePresenter<Void> {
         button(d, R.string.ap_hub_all, R.string.ap_hub_all_d, this::showAll);
         button(d, R.string.ap_hub_styles, R.string.ap_hub_styles_d, this::showStyles);
         button(d, R.string.ap_hub_colors, R.string.ap_hub_colors_d, this::showColors);
+        button(d, R.string.ap_hub_preview, R.string.ap_hub_preview_d, this::showPreviewSettings);
         appendReset(d);
 
         d.showDialog(getContext().getString(R.string.ap_dialog), backTo(null));
@@ -111,16 +113,18 @@ public class AppearanceSettingsPresenter extends BasePresenter<Void> {
 
     private void showTitles() {
         AppDialogPresenter d = AppDialogPresenter.instance(getContext());
-        appendGroup(d, TITLES);
         previewFor(d, TITLES);
+        appendFullPreviewButton(d);
+        appendGroup(d, TITLES);
         d.showDialog(getContext().getString(R.string.ap_hub_titles), backTo(this::show));
     }
 
     private void showAll() {
         AppDialogPresenter d = AppDialogPresenter.instance(getContext());
+        previewFor(d, Category.values());
+        appendFullPreviewButton(d);
         appendGlobalFontScale(d);
         appendGroup(d, Category.values());
-        previewFor(d, Category.values());
         d.showDialog(getContext().getString(R.string.ap_hub_all), backTo(this::show));
     }
 
@@ -137,26 +141,97 @@ public class AppearanceSettingsPresenter extends BasePresenter<Void> {
 
     private void showElement(Category category) {
         AppDialogPresenter d = AppDialogPresenter.instance(getContext());
-        appendGroup(d, new Category[] {category});
         previewFor(d, new Category[] {category});
+        appendFullPreviewButton(d);
+        appendGroup(d, new Category[] {category});
         d.showDialog(getContext().getString(category.titleResId), backTo(this::showElements));
     }
 
     private void showStyles() {
         AppDialogPresenter d = AppDialogPresenter.instance(getContext());
+        previewFor(d, Category.values());
+        appendFullPreviewButton(d);
         appendPresets(d);
         appendSlots(d);
         appendTransfer(d);
-        previewFor(d, Category.values());
         d.showDialog(getContext().getString(R.string.ap_hub_styles), backTo(this::show));
     }
 
     private void showColors() {
         AppDialogPresenter d = AppDialogPresenter.instance(getContext());
+        previewFor(d, null);
+        appendFullPreviewButton(d);
         appendBackground(d);
         appendAccent(d);
-        previewFor(d, null);
         d.showDialog(getContext().getString(R.string.ap_hub_colors), backTo(this::show));
+    }
+
+    private void showPreviewSettings() {
+        AppDialogPresenter d = AppDialogPresenter.instance(getContext());
+
+        appendFullPreviewButton(d);
+        appendPreviewOption(d, R.string.ap_pv_show, AppearancePrefs.PREVIEW_ENABLED,
+                new int[] {1, 0}, new String[] {str(R.string.ap_pv_on), str(R.string.ap_pv_off)});
+        appendPreviewOption(d, R.string.ap_pv_position, AppearancePrefs.PREVIEW_POSITION,
+                new int[] {0, 1, 2}, new String[] {str(R.string.ap_pv_bottom), str(R.string.ap_pv_top), str(R.string.ap_pv_auto)});
+        appendPreviewOption(d, R.string.ap_pv_size, AppearancePrefs.PREVIEW_SIZE,
+                new int[] {0, 1, 2}, new String[] {str(R.string.ap_pv_size_compact), str(R.string.ap_pv_size_normal), str(R.string.ap_pv_size_large)});
+        appendPreviewOption(d, R.string.ap_pv_align, AppearancePrefs.PREVIEW_ALIGN,
+                new int[] {0, 1, 2}, new String[] {str(R.string.ap_pv_left), str(R.string.ap_pv_center), str(R.string.ap_pv_right)});
+        appendPreviewOption(d, R.string.ap_pv_text, AppearancePrefs.PREVIEW_TEXT,
+                new int[] {0, 1, 2}, new String[] {str(R.string.ap_pv_text_name), str(R.string.ap_pv_text_sample), str(R.string.ap_pv_text_custom)});
+        appendCustomTextButton(d);
+        appendPreviewOption(d, R.string.ap_pv_compare, AppearancePrefs.PREVIEW_COMPARE,
+                new int[] {0, 1}, new String[] {str(R.string.ap_pv_off), str(R.string.ap_pv_on)});
+        appendPreviewOption(d, R.string.ap_pv_opacity, AppearancePrefs.PREVIEW_OPACITY,
+                new int[] {100, 85, 70}, new String[] {"100%", "85%", "70%"});
+
+        // The window is shown here too, so every change is visible right away
+        previewFor(d, Category.values());
+        d.showDialog(getContext().getString(R.string.ap_hub_preview), backTo(this::show));
+    }
+
+    /** Typing needs the keyboard, which has its own window: leave the settings, type, and come back */
+    private void appendCustomTextButton(AppDialogPresenter d) {
+        String current = AppearancePrefs.getPreviewCustomText(getContext());
+        d.appendSingleButton(UiOptionItem.from(str(R.string.ap_pv_custom_edit),
+                current.isEmpty() ? str(R.string.ap_pv_custom_none) : current,
+                optionItem -> go(() -> InAppKeyboardDialog.show(getContext(), str(R.string.ap_pv_custom_edit),
+                        str(R.string.ap_pv_custom_hint), AppearancePrefs.getPreviewCustomText(getContext()),
+                        text -> {
+                            AppearancePrefs.setPreviewCustomText(getContext(), text);
+                            if (!text.trim().isEmpty()) {
+                                AppearancePrefs.setPreviewOption(getContext(), AppearancePrefs.PREVIEW_TEXT, 2);
+                            }
+                            return true;
+                        }, this::showPreviewSettings))));
+    }
+
+    /** Full-screen sample with the real sizes of the elements of the current screen */
+    private void appendFullPreviewButton(AppDialogPresenter d) {
+        d.appendSingleButton(UiOptionItem.from(str(R.string.ap_prev_full), optionItem -> {
+            Activity activity = AppDialogPresenter.instance(getContext()).getDialogActivity();
+            AppearancePreview.showFull(activity, mPreviewTargets);
+        }));
+    }
+
+    private void appendPreviewOption(AppDialogPresenter d, int titleRes, String key, int[] values, String[] names) {
+        List<OptionItem> options = new ArrayList<>();
+        int current = AppearancePrefs.getPreviewOption(getContext(), key);
+
+        for (int i = 0; i < values.length; i++) {
+            final int value = values[i];
+            options.add(UiOptionItem.from(names[i], optionItem -> {
+                AppearancePrefs.setPreviewOption(getContext(), key, value);
+                updatePreview();
+            }, current == value));
+        }
+
+        d.appendRadioCategory(getContext().getString(titleRes), options);
+    }
+
+    private String str(int resId) {
+        return getContext().getString(resId);
     }
 
     /** One line with the current settings of an element, e.g. "1.2x · Bold · Serif · Yellow" */
