@@ -42,6 +42,11 @@ public class SearchTagsActivity extends LeanbackActivity {
             return;
         }
 
+        // built-in keyboard open: Back closes it first
+        if (mFragment != null && mFragment.hideInAppKeyboardOnBack()) {
+            return;
+        }
+
         super.onBackPressed();
     }
 

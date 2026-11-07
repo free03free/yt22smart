@@ -10,11 +10,13 @@ import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
 import android.text.Editable;
 import android.text.InputType;
+import android.util.DisplayMetrics;
 import android.content.Context;
 import android.text.TextUtils;
 import android.text.TextWatcher;
 import android.util.Log;
 import android.view.LayoutInflater;
+import android.view.Gravity;
 import android.view.View;
 import android.view.KeyEvent;
 import android.view.View.OnFocusChangeListener;
@@ -46,7 +48,7 @@ import com.liskovsoft.sharedutils.helpers.Helpers;
 import com.liskovsoft.sharedutils.helpers.KeyHelpers;
 import com.liskovsoft.sharedutils.helpers.MessageHelpers;
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.SearchPresenter;
-import com.liskovsoft.smartyoutubetv2.common.utils.InAppKeyboardDialog;
+import com.liskovsoft.smartyoutubetv2.common.utils.InAppKeyboardView;
 import com.liskovsoft.smartyoutubetv2.common.utils.Utils;
 import com.liskovsoft.smartyoutubetv2.tv.BuildConfig;
 
@@ -240,7 +242,9 @@ public class SearchSupportFragment extends Fragment {
     private boolean mIsKeyboardAutoShowEnabled;
     private boolean mIsKeyboardFixEnabled;
     private boolean mIsInAppKeyboardEnabled;
-    private boolean mInAppKeyboardOpen;
+    private InAppKeyboardView mInAppKeyboard;
+    private boolean mAutoShowBlocked;
+    private static final String IN_APP_KEYBOARD_DRAFT_KEY = "youtube_search";
     private boolean mIsTypingCorrectionDisabled;
 
     private SpeechRecognizer mSpeechRecognizer;
@@ -375,8 +379,8 @@ public class SearchSupportFragment extends Fragment {
 
             if (mIsInAppKeyboardEnabled) {
                 // built-in keyboard: never the device keyboard
-                if (mIsKeyboardAutoShowEnabled && focused) {
-                    showInAppKeyboard();
+                if (mIsKeyboardAutoShowEnabled && focused && !mAutoShowBlocked) {
+                    showInAppKeyboard(false);
                 }
             } else if (mIsKeyboardAutoShowEnabled && focused) {
                 Helpers.showKeyboardAlt(v.getContext(), v);
@@ -416,17 +420,18 @@ public class SearchSupportFragment extends Fragment {
         // MOD: built-in Arabic/English keyboard. OK / touch on the field opens it; the device keyboard stays hidden.
         if (mIsInAppKeyboardEnabled) {
             mSearchTextEditor.setShowSoftInputOnFocus(false);
-            mSearchTextEditor.setOnClickListener(v -> showInAppKeyboard());
+            mSearchTextEditor.setOnClickListener(v -> showInAppKeyboard(true));
             mSearchTextEditor.setOnKeyListener((v, keyCode, event) -> {
                 if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER
                         || keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER) {
                     if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
-                        showInAppKeyboard();
+                        showInAppKeyboard(true);
                     }
                     return true;
                 }
                 return false;
             });
+            createInAppKeyboard(searchFrame);
         }
 
         // MOD: commit search button
@@ -870,37 +875,100 @@ public class SearchSupportFragment extends Fragment {
     }
 
     /**
-     * Built-in keyboard. The text is kept as a draft after every key, so leaving with Back / Cancel loses nothing:
-     * it is put back into the search field and restored the next time the keyboard is opened.
+     * Built-in keyboard embedded at the bottom of the search screen. It types straight into the search bar, so the
+     * YouTube suggestions update with every letter, and nothing is lost when the focus leaves the keyboard.
      */
-    private void showInAppKeyboard() {
-        if (!isAdded() || getActivity() == null || mSearchTextEditor == null || mInAppKeyboardOpen) {
+    private void createInAppKeyboard(FrameLayout frame) {
+        final Context context = frame.getContext();
+        DisplayMetrics dm = InAppKeyboardView.screenMetrics(context);
+        int navPx = InAppKeyboardView.navigationBarInset(context, dm);
+        // keyboard takes at most half of the screen so the suggestions under the search bar stay visible
+        float reserved = 18 + navPx / context.getResources().getDisplayMetrics().density;
+        int rowH = InAppKeyboardView.rowHeightPx(context, dm, reserved, 0.5f);
+
+        mInAppKeyboard = new InAppKeyboardView(context, new InAppKeyboardView.Host() {
+            @Override
+            public String getText() {
+                return getSearchBarText();
+            }
+
+            @Override
+            public void setText(String text) {
+                if (mSearchBar == null) {
+                    return;
+                }
+                mSearchBar.setSearchQuery(text); // fires the suggestions update
+                if (mSearchTextEditor != null) {
+                    mSearchTextEditor.setSelection(mSearchTextEditor.getText().length());
+                }
+                InAppKeyboardView.saveDraft(context, IN_APP_KEYBOARD_DRAFT_KEY, text);
+            }
+
+            @Override
+            public void onSubmit() {
+                String query = getSearchBarText() == null ? "" : getSearchBarText().trim();
+                if (!query.isEmpty()) {
+                    setSearchQuery(query, true);
+                }
+            }
+
+            @Override
+            public void onClose() {
+                hideInAppKeyboard(true);
+            }
+        }, true, rowH);
+        mInAppKeyboard.applySheetBackground(navPx);
+        mInAppKeyboard.setVisibility(View.GONE);
+        frame.addView(mInAppKeyboard, new FrameLayout.LayoutParams(
+                InAppKeyboardView.panelWidthPx(context, dm, rowH), ViewGroup.LayoutParams.WRAP_CONTENT,
+                Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL));
+
+        // what was typed last time is still there
+        if (TextUtils.isEmpty(getSearchBarText())) {
+            String draft = InAppKeyboardView.getDraft(context, IN_APP_KEYBOARD_DRAFT_KEY);
+            if (!TextUtils.isEmpty(draft)) {
+                mSearchBar.setSearchQuery(draft);
+            }
+        }
+    }
+
+    /** @param focus move the remote focus to the keyboard even when it is already visible */
+    private void showInAppKeyboard(boolean focus) {
+        if (mInAppKeyboard == null || !isAdded()) {
             return;
         }
 
-        mInAppKeyboardOpen = true;
-        final boolean[] submitted = {false};
-        final Context context = getActivity();
-        final String title = context.getString(com.liskovsoft.smartyoutubetv2.common.R.string.inapp_kb_search_title);
-
-        InAppKeyboardDialog.showSearch(context, title, title, getSearchBarText(), text -> {
-            String query = text == null ? "" : text.trim();
-            if (!query.isEmpty()) {
-                submitted[0] = true;
-                setSearchQuery(query, true);
-            }
-            return true;
-        }, () -> {
-            mInAppKeyboardOpen = false;
-            if (!submitted[0] && isAdded() && mSearchBar != null && mSearchTextEditor != null) {
-                // closed without searching: keep what was typed in the field
-                String draft = InAppKeyboardDialog.getDraft(context, title);
-                if (!TextUtils.isEmpty(draft)) {
-                    mSearchBar.setSearchQuery(draft);
-                    mSearchTextEditor.setSelection(mSearchTextEditor.getText().length());
+        boolean wasHidden = mInAppKeyboard.getVisibility() != View.VISIBLE;
+        mInAppKeyboard.setVisibility(View.VISIBLE);
+        if (wasHidden || focus) {
+            mInAppKeyboard.post(() -> {
+                if (mInAppKeyboard != null) {
+                    mInAppKeyboard.focusSpace();
                 }
-            }
-        });
+            });
+        }
+    }
+
+    private void hideInAppKeyboard(boolean focusSearchField) {
+        if (mInAppKeyboard == null || mInAppKeyboard.getVisibility() != View.VISIBLE) {
+            return;
+        }
+
+        mInAppKeyboard.setVisibility(View.GONE);
+        if (focusSearchField && mSearchTextEditor != null) {
+            mAutoShowBlocked = true; // focusing the field must not bring the keyboard back
+            mSearchTextEditor.requestFocus();
+            mSearchTextEditor.post(() -> mAutoShowBlocked = false);
+        }
+    }
+
+    /** Back button: close the built-in keyboard first. @return true if it was open and got closed */
+    public boolean hideInAppKeyboardOnBack() {
+        if (mInAppKeyboard != null && mInAppKeyboard.getVisibility() == View.VISIBLE) {
+            hideInAppKeyboard(true);
+            return true;
+        }
+        return false;
     }
 
     protected void setKeyboardFixEnabled(boolean enable) {
@@ -944,6 +1012,8 @@ public class SearchSupportFragment extends Fragment {
         if (query == null) {
             return;
         }
+
+        hideInAppKeyboard(false);
 
         queryComplete();
         if (null != mProvider) {

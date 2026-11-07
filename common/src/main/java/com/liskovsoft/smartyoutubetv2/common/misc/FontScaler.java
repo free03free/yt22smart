@@ -3,6 +3,7 @@ package com.liskovsoft.smartyoutubetv2.common.misc;
 import android.app.Activity;
 import android.content.Context;
 import android.content.res.ColorStateList;
+import android.graphics.Paint;
 import android.graphics.Typeface;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
@@ -125,24 +126,35 @@ public final class FontScaler {
             tv.setTag(R.id.font_scaler_color, null);
         }
 
-        // Bold
-        boolean bold = AppearancePrefs.isBold(ctx, c);
+        // Font weight and font type
+        int weight = AppearancePrefs.getWeight(ctx, c);
+        String font = AppearancePrefs.getFont(ctx, c);
         Typeface[] savedFace = (Typeface[]) tv.getTag(R.id.font_scaler_style);
-        if (bold) {
-            Typeface cur = tv.getTypeface();
+        if (weight != 0 || !font.isEmpty()) {
             if (savedFace == null) {
-                savedFace = new Typeface[] {cur};
+                savedFace = new Typeface[] {tv.getTypeface()};
                 tv.setTag(R.id.font_scaler_style, savedFace);
             }
-            if (cur == null || !cur.isBold()) {
-                tv.setTypeface(savedFace[0], Typeface.BOLD);
+            Typeface target = AppearanceFonts.resolve(ctx, savedFace[0], font, weight);
+            if (tv.getTypeface() != target) {
+                tv.setTypeface(target);
             }
+            // "Extra thick": black weight plus a synthetic stroke on top
+            setFakeBold(tv, weight > 900);
         } else if (savedFace != null) {
             tv.setTypeface(savedFace[0]);
+            setFakeBold(tv, false);
             tv.setTag(R.id.font_scaler_style, null);
         }
     }
 
+    private static void setFakeBold(TextView tv, boolean fake) {
+        int flags = tv.getPaintFlags();
+        boolean has = (flags & Paint.FAKE_BOLD_TEXT_FLAG) != 0;
+        if (fake != has) {
+            tv.setPaintFlags(fake ? flags | Paint.FAKE_BOLD_TEXT_FLAG : flags & ~Paint.FAKE_BOLD_TEXT_FLAG);
+        }
+    }
 
     private static ColorStateList buildColors(ColorStateList orig, int color, int accent) {
         int[][] states = {

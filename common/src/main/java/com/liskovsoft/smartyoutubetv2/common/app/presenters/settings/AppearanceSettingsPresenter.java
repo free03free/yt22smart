@@ -21,6 +21,7 @@ import com.liskovsoft.smartyoutubetv2.common.app.models.playback.ui.OptionItem;
 import com.liskovsoft.smartyoutubetv2.common.app.models.playback.ui.UiOptionItem;
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.AppDialogPresenter;
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.base.BasePresenter;
+import com.liskovsoft.smartyoutubetv2.common.misc.AppearanceFonts;
 import com.liskovsoft.smartyoutubetv2.common.misc.AppearancePrefs;
 import com.liskovsoft.smartyoutubetv2.common.misc.AppearanceStyle;
 import com.liskovsoft.smartyoutubetv2.common.misc.FontScaler;
@@ -31,7 +32,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Advanced appearance: per-element font size, text color and bold, background color and ready-made styles.
+ * Advanced appearance: per-element font size, text color, font weight and font type, background color and ready-made styles.
  */
 public class AppearanceSettingsPresenter extends BasePresenter<Void> {
     private static final int[] COLOR_NAMES = {R.string.ap_color_default, R.string.ap_color_white, R.string.ap_color_grey, R.string.ap_color_yellow, R.string.ap_color_amber, R.string.ap_color_orange, R.string.ap_color_red, R.string.ap_color_pink, R.string.ap_color_purple, R.string.ap_color_blue, R.string.ap_color_cyan, R.string.ap_color_green, R.string.ap_color_black};
@@ -69,7 +70,8 @@ public class AppearanceSettingsPresenter extends BasePresenter<Void> {
         appendGlobalFontScale(settingsPresenter);
         appendFontSizes(settingsPresenter);
         appendTextColors(settingsPresenter);
-        appendBold(settingsPresenter);
+        appendWeights(settingsPresenter);
+        appendFonts(settingsPresenter);
         appendAccent(settingsPresenter);
         appendBackground(settingsPresenter);
         appendReset(settingsPresenter);
@@ -138,16 +140,71 @@ public class AppearanceSettingsPresenter extends BasePresenter<Void> {
         }
     }
 
-    private void appendBold(AppDialogPresenter settingsPresenter) {
-        List<OptionItem> options = new ArrayList<>();
+    /** Elements that are titles: used by the "all titles" shortcut of the weight and font options */
+    private static final Category[] TITLES = {Category.CARD_TITLE, Category.ROW_HEADER, Category.BROWSE_TITLE,
+            Category.DIALOG_TITLE, Category.DETAILS, Category.MENU_ITEM, Category.SETTINGS_ITEM};
+
+    private void appendWeights(AppDialogPresenter settingsPresenter) {
+        // Shortcuts first: all elements / all titles
+        appendWeightOptions(settingsPresenter, getContext().getString(R.string.ap_weight_of, getContext().getString(R.string.ap_scope_all)), Category.values());
+        appendWeightOptions(settingsPresenter, getContext().getString(R.string.ap_weight_of, getContext().getString(R.string.ap_scope_titles)), TITLES);
 
         for (Category category : Category.values()) {
-            options.add(UiOptionItem.from(getContext().getString(category.titleResId),
-                    optionItem -> AppearancePrefs.setBold(getContext(), category, optionItem.isSelected()),
-                    AppearancePrefs.isBold(getContext(), category)));
+            appendWeightOptions(settingsPresenter,
+                    getContext().getString(R.string.ap_weight_of, getContext().getString(category.titleResId)), new Category[] {category});
+        }
+    }
+
+    private void appendWeightOptions(AppDialogPresenter settingsPresenter, String title, Category[] targets) {
+        List<OptionItem> options = new ArrayList<>();
+
+        for (int i = 0; i < AppearanceFonts.WEIGHT_VALUES.length; i++) {
+            final int weight = AppearanceFonts.WEIGHT_VALUES[i];
+            boolean selected = true;
+            for (Category target : targets) {
+                selected &= AppearancePrefs.getWeight(getContext(), target) == weight;
+            }
+            options.add(UiOptionItem.from(getContext().getString(AppearanceFonts.WEIGHT_NAMES[i]),
+                    optionItem -> {
+                        for (Category target : targets) {
+                            AppearancePrefs.setWeight(getContext(), target, weight);
+                        }
+                    }, selected));
         }
 
-        settingsPresenter.appendCheckedCategory(getContext().getString(R.string.ap_bold), options);
+        settingsPresenter.appendRadioCategory(title, options);
+    }
+
+    private void appendFonts(AppDialogPresenter settingsPresenter) {
+        AppearanceFonts.FontList fonts = AppearanceFonts.list(getContext());
+
+        appendFontOptions(settingsPresenter, fonts, getContext().getString(R.string.ap_font_of, getContext().getString(R.string.ap_scope_all)), Category.values());
+        appendFontOptions(settingsPresenter, fonts, getContext().getString(R.string.ap_font_of, getContext().getString(R.string.ap_scope_titles)), TITLES);
+
+        for (Category category : Category.values()) {
+            appendFontOptions(settingsPresenter, fonts,
+                    getContext().getString(R.string.ap_font_of, getContext().getString(category.titleResId)), new Category[] {category});
+        }
+    }
+
+    private void appendFontOptions(AppDialogPresenter settingsPresenter, AppearanceFonts.FontList fonts, String title, Category[] targets) {
+        List<OptionItem> options = new ArrayList<>();
+
+        for (int i = 0; i < fonts.keys.size(); i++) {
+            final String key = fonts.keys.get(i);
+            boolean selected = true;
+            for (Category target : targets) {
+                selected &= key.equals(AppearancePrefs.getFont(getContext(), target));
+            }
+            options.add(UiOptionItem.from(fonts.names.get(i),
+                    optionItem -> {
+                        for (Category target : targets) {
+                            AppearancePrefs.setFont(getContext(), target, key);
+                        }
+                    }, selected));
+        }
+
+        settingsPresenter.appendRadioCategory(title, options);
     }
 
     private void appendBackground(AppDialogPresenter settingsPresenter) {
@@ -329,7 +386,7 @@ public class AppearanceSettingsPresenter extends BasePresenter<Void> {
                 setAllColors(0xFFFFFFFF);
                 AppearancePrefs.setBackground(getContext(), 0xFF000000);
                 for (Category category : new Category[] {Category.CARD_TITLE, Category.ROW_HEADER, Category.MENU_ITEM, Category.SETTINGS_ITEM}) {
-                    AppearancePrefs.setBold(getContext(), category, true);
+                    AppearancePrefs.setWeight(getContext(), category, AppearanceFonts.WEIGHT_BOLD);
                 }
                 break;
             case 4: // warm night
