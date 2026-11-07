@@ -6,6 +6,9 @@ import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.graphics.Color;
+import android.os.Handler;
+import android.os.Looper;
+import android.text.TextUtils;
 import android.text.SpannableString;
 import android.text.Spanned;
 import android.text.style.ForegroundColorSpan;
@@ -32,7 +35,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Advanced appearance: per-element font size, text color, font weight and font type, background color and ready-made styles.
+ * Advanced appearance. A short main screen opens sub screens: titles, a single element (size, weight, font type and
+ * color in one place), all text, styles and sharing, and colors/background.
  */
 public class AppearanceSettingsPresenter extends BasePresenter<Void> {
     private static final int[] COLOR_NAMES = {R.string.ap_color_default, R.string.ap_color_white, R.string.ap_color_grey, R.string.ap_color_yellow, R.string.ap_color_amber, R.string.ap_color_orange, R.string.ap_color_red, R.string.ap_color_pink, R.string.ap_color_purple, R.string.ap_color_blue, R.string.ap_color_cyan, R.string.ap_color_green, R.string.ap_color_black};
@@ -42,14 +46,14 @@ public class AppearanceSettingsPresenter extends BasePresenter<Void> {
     private static final int[] PRESET_NAMES = {R.string.ap_preset_default, R.string.ap_preset_tv_large, R.string.ap_preset_compact, R.string.ap_preset_contrast, R.string.ap_preset_warm};
     private static final float[] FONT_STEPS = {0.6f, 0.7f, 0.8f, 0.9f, 1.0f, 1.1f, 1.2f, 1.3f, 1.4f, 1.5f, 1.7f, 2.0f, 2.5f};
 
+    /** Elements that are titles: used by the "Titles" screen */
+    private static final Category[] TITLES = {Category.CARD_TITLE, Category.ROW_HEADER, Category.BROWSE_TITLE,
+            Category.DIALOG_TITLE, Category.DETAILS, Category.MENU_ITEM, Category.SETTINGS_ITEM};
+
     private final MainUIData mMainUIData;
+    private final Handler mHandler = new Handler(Looper.getMainLooper());
     private boolean mRestartApp;
-    private final Runnable mOnFinish = () -> {
-        if (mRestartApp) {
-            mRestartApp = false;
-            MessageHelpers.showLongMessage(getContext(), R.string.ap_note_restart);
-        }
-    };
+    private boolean mForward;
 
     private AppearanceSettingsPresenter(Context context) {
         super(context);
@@ -60,23 +64,139 @@ public class AppearanceSettingsPresenter extends BasePresenter<Void> {
         return new AppearanceSettingsPresenter(context);
     }
 
+    // ------------------------------------------------------------------ navigation
+
+    /** Opens a deeper screen from a button: closes the current one without returning to its parent */
+    private void go(Runnable screen) {
+        mForward = true;
+        AppDialogPresenter.instance(getContext()).closeDialog();
+        mHandler.post(screen);
+    }
+
+    /** What happens when a screen is left: BACK returns to the parent screen, going deeper does not */
+    private Runnable backTo(Runnable parent) {
+        return () -> {
+            if (mForward) {
+                mForward = false;
+                return;
+            }
+            if (mRestartApp) {
+                mRestartApp = false;
+                MessageHelpers.showLongMessage(getContext(), R.string.ap_note_restart);
+            }
+            if (parent != null) {
+                mHandler.post(parent);
+            }
+        };
+    }
+
+    private void button(AppDialogPresenter d, int titleRes, int descRes, Runnable screen) {
+        d.appendSingleButton(UiOptionItem.from(getContext().getString(titleRes), getContext().getString(descRes), optionItem -> go(screen)));
+    }
+
+    // ------------------------------------------------------------------ screens
+
+    /** Main screen: short, only entry points */
     public void show() {
-        AppDialogPresenter settingsPresenter = AppDialogPresenter.instance(getContext());
+        AppDialogPresenter d = AppDialogPresenter.instance(getContext());
 
-        appendPreview(settingsPresenter);
-        appendPresets(settingsPresenter);
-        appendSlots(settingsPresenter);
-        appendTransfer(settingsPresenter);
-        appendGlobalFontScale(settingsPresenter);
-        appendFontSizes(settingsPresenter);
-        appendTextColors(settingsPresenter);
-        appendWeights(settingsPresenter);
-        appendFonts(settingsPresenter);
-        appendAccent(settingsPresenter);
-        appendBackground(settingsPresenter);
-        appendReset(settingsPresenter);
+        appendPreview(d);
+        button(d, R.string.ap_hub_titles, R.string.ap_hub_titles_d, this::showTitles);
+        button(d, R.string.ap_hub_element, R.string.ap_hub_element_d, this::showElements);
+        button(d, R.string.ap_hub_all, R.string.ap_hub_all_d, this::showAll);
+        button(d, R.string.ap_hub_styles, R.string.ap_hub_styles_d, this::showStyles);
+        button(d, R.string.ap_hub_colors, R.string.ap_hub_colors_d, this::showColors);
+        appendReset(d);
 
-        settingsPresenter.showDialog(getContext().getString(R.string.ap_dialog), mOnFinish);
+        d.showDialog(getContext().getString(R.string.ap_dialog), backTo(null));
+    }
+
+    private void showTitles() {
+        AppDialogPresenter d = AppDialogPresenter.instance(getContext());
+        appendPreview(d);
+        appendGroup(d, TITLES);
+        d.showDialog(getContext().getString(R.string.ap_hub_titles), backTo(this::show));
+    }
+
+    private void showAll() {
+        AppDialogPresenter d = AppDialogPresenter.instance(getContext());
+        appendPreview(d);
+        appendGlobalFontScale(d);
+        appendGroup(d, Category.values());
+        d.showDialog(getContext().getString(R.string.ap_hub_all), backTo(this::show));
+    }
+
+    private void showElements() {
+        AppDialogPresenter d = AppDialogPresenter.instance(getContext());
+
+        for (Category category : Category.values()) {
+            d.appendSingleButton(UiOptionItem.from(getContext().getString(category.titleResId), summary(category),
+                    optionItem -> go(() -> showElement(category))));
+        }
+
+        d.showDialog(getContext().getString(R.string.ap_elements_title), backTo(this::show));
+    }
+
+    private void showElement(Category category) {
+        AppDialogPresenter d = AppDialogPresenter.instance(getContext());
+        appendPreview(d);
+        appendGroup(d, new Category[] {category});
+        d.showDialog(getContext().getString(category.titleResId), backTo(this::showElements));
+    }
+
+    private void showStyles() {
+        AppDialogPresenter d = AppDialogPresenter.instance(getContext());
+        appendPresets(d);
+        appendSlots(d);
+        appendTransfer(d);
+        d.showDialog(getContext().getString(R.string.ap_hub_styles), backTo(this::show));
+    }
+
+    private void showColors() {
+        AppDialogPresenter d = AppDialogPresenter.instance(getContext());
+        appendBackground(d);
+        appendAccent(d);
+        d.showDialog(getContext().getString(R.string.ap_hub_colors), backTo(this::show));
+    }
+
+    /** One line with the current settings of an element, e.g. "1.2x · Bold · Serif · Yellow" */
+    private String summary(Category category) {
+        Context ctx = getContext();
+        List<String> parts = new ArrayList<>();
+
+        parts.add(String.format("%sx", mMainUIData.getFontScale(category)));
+
+        int weight = AppearancePrefs.getWeight(ctx, category);
+        for (int i = 0; i < AppearanceFonts.WEIGHT_VALUES.length; i++) {
+            if (weight != 0 && AppearanceFonts.WEIGHT_VALUES[i] == weight) {
+                parts.add(ctx.getString(AppearanceFonts.WEIGHT_NAMES[i]));
+            }
+        }
+
+        AppearanceFonts.FontList fonts = AppearanceFonts.list(ctx);
+        int fontIndex = fonts.keys.indexOf(AppearancePrefs.getFont(ctx, category));
+        if (fontIndex > 0) {
+            parts.add(fonts.names.get(fontIndex));
+        }
+
+        int color = AppearancePrefs.getTextColor(ctx, category);
+        for (int i = 1; i < COLOR_VALUES.length; i++) {
+            if (COLOR_VALUES[i] == color) {
+                parts.add(ctx.getString(COLOR_NAMES[i]));
+            }
+        }
+
+        return TextUtils.join(" \u00B7 ", parts);
+    }
+
+    // ------------------------------------------------------------------ option groups
+
+    /** Size, weight, font type and color for the given elements, all in one place */
+    private void appendGroup(AppDialogPresenter d, Category[] targets) {
+        appendSizeOptions(d, targets);
+        appendWeightOptions(d, targets);
+        appendFontOptions(d, targets);
+        appendColorOptions(d, targets);
     }
 
     private void appendPresets(AppDialogPresenter settingsPresenter) {
@@ -109,53 +229,26 @@ public class AppearanceSettingsPresenter extends BasePresenter<Void> {
         settingsPresenter.appendRadioCategory(getContext().getString(R.string.font_scale), options);
     }
 
-    private void appendFontSizes(AppDialogPresenter settingsPresenter) {
-        for (Category category : Category.values()) {
-            List<OptionItem> options = new ArrayList<>();
+    private void appendSizeOptions(AppDialogPresenter d, Category[] targets) {
+        List<OptionItem> options = new ArrayList<>();
 
-            for (float scale : FONT_STEPS) {
-                options.add(UiOptionItem.from(String.format("%sx", scale),
-                        optionItem -> mMainUIData.setFontScale(category, scale),
-                        Helpers.floatEquals(scale, mMainUIData.getFontScale(category))));
+        for (float scale : FONT_STEPS) {
+            boolean selected = true;
+            for (Category target : targets) {
+                selected &= Helpers.floatEquals(scale, mMainUIData.getFontScale(target));
             }
-
-            settingsPresenter.appendRadioCategory(
-                    getContext().getString(R.string.ap_size_of, getContext().getString(category.titleResId)), options);
+            options.add(UiOptionItem.from(String.format("%sx", scale),
+                    optionItem -> {
+                        for (Category target : targets) {
+                            mMainUIData.setFontScale(target, scale);
+                        }
+                    }, selected));
         }
+
+        d.appendRadioCategory(getContext().getString(R.string.ap_k_size), options);
     }
 
-    private void appendTextColors(AppDialogPresenter settingsPresenter) {
-        for (Category category : Category.values()) {
-            List<OptionItem> options = new ArrayList<>();
-
-            for (int i = 0; i < COLOR_VALUES.length; i++) {
-                final int color = COLOR_VALUES[i];
-                options.add(UiOptionItem.from(swatch(getContext().getString(COLOR_NAMES[i]), color),
-                        optionItem -> AppearancePrefs.setTextColor(getContext(), category, color),
-                        AppearancePrefs.getTextColor(getContext(), category) == color));
-            }
-
-            settingsPresenter.appendRadioCategory(
-                    getContext().getString(R.string.ap_color_of, getContext().getString(category.titleResId)), options);
-        }
-    }
-
-    /** Elements that are titles: used by the "all titles" shortcut of the weight and font options */
-    private static final Category[] TITLES = {Category.CARD_TITLE, Category.ROW_HEADER, Category.BROWSE_TITLE,
-            Category.DIALOG_TITLE, Category.DETAILS, Category.MENU_ITEM, Category.SETTINGS_ITEM};
-
-    private void appendWeights(AppDialogPresenter settingsPresenter) {
-        // Shortcuts first: all elements / all titles
-        appendWeightOptions(settingsPresenter, getContext().getString(R.string.ap_weight_of, getContext().getString(R.string.ap_scope_all)), Category.values());
-        appendWeightOptions(settingsPresenter, getContext().getString(R.string.ap_weight_of, getContext().getString(R.string.ap_scope_titles)), TITLES);
-
-        for (Category category : Category.values()) {
-            appendWeightOptions(settingsPresenter,
-                    getContext().getString(R.string.ap_weight_of, getContext().getString(category.titleResId)), new Category[] {category});
-        }
-    }
-
-    private void appendWeightOptions(AppDialogPresenter settingsPresenter, String title, Category[] targets) {
+    private void appendWeightOptions(AppDialogPresenter d, Category[] targets) {
         List<OptionItem> options = new ArrayList<>();
 
         for (int i = 0; i < AppearanceFonts.WEIGHT_VALUES.length; i++) {
@@ -172,22 +265,11 @@ public class AppearanceSettingsPresenter extends BasePresenter<Void> {
                     }, selected));
         }
 
-        settingsPresenter.appendRadioCategory(title, options);
+        d.appendRadioCategory(getContext().getString(R.string.ap_k_weight), options);
     }
 
-    private void appendFonts(AppDialogPresenter settingsPresenter) {
+    private void appendFontOptions(AppDialogPresenter d, Category[] targets) {
         AppearanceFonts.FontList fonts = AppearanceFonts.list(getContext());
-
-        appendFontOptions(settingsPresenter, fonts, getContext().getString(R.string.ap_font_of, getContext().getString(R.string.ap_scope_all)), Category.values());
-        appendFontOptions(settingsPresenter, fonts, getContext().getString(R.string.ap_font_of, getContext().getString(R.string.ap_scope_titles)), TITLES);
-
-        for (Category category : Category.values()) {
-            appendFontOptions(settingsPresenter, fonts,
-                    getContext().getString(R.string.ap_font_of, getContext().getString(category.titleResId)), new Category[] {category});
-        }
-    }
-
-    private void appendFontOptions(AppDialogPresenter settingsPresenter, AppearanceFonts.FontList fonts, String title, Category[] targets) {
         List<OptionItem> options = new ArrayList<>();
 
         for (int i = 0; i < fonts.keys.size(); i++) {
@@ -204,7 +286,27 @@ public class AppearanceSettingsPresenter extends BasePresenter<Void> {
                     }, selected));
         }
 
-        settingsPresenter.appendRadioCategory(title, options);
+        d.appendRadioCategory(getContext().getString(R.string.ap_k_font), options);
+    }
+
+    private void appendColorOptions(AppDialogPresenter d, Category[] targets) {
+        List<OptionItem> options = new ArrayList<>();
+
+        for (int i = 0; i < COLOR_VALUES.length; i++) {
+            final int color = COLOR_VALUES[i];
+            boolean selected = true;
+            for (Category target : targets) {
+                selected &= AppearancePrefs.getTextColor(getContext(), target) == color;
+            }
+            options.add(UiOptionItem.from(swatch(getContext().getString(COLOR_NAMES[i]), color),
+                    optionItem -> {
+                        for (Category target : targets) {
+                            AppearancePrefs.setTextColor(getContext(), target, color);
+                        }
+                    }, selected));
+        }
+
+        d.appendRadioCategory(getContext().getString(R.string.ap_k_color), options);
     }
 
     private void appendBackground(AppDialogPresenter settingsPresenter) {
