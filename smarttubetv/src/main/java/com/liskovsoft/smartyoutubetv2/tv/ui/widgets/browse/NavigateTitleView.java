@@ -174,9 +174,7 @@ public class NavigateTitleView extends TitleView implements OnDataChange, Accoun
             mSearchOrbView.setVisibility(View.GONE);
         }
 
-        if (mIsAccountViewEnabled) {
-            mAccountView.setVisibility(mSearchVisibility);
-        }
+        // MOD: account button moved to the sidebar rail
 
         if (mIsLanguageViewEnabled) {
             mLanguageView.setVisibility(mSearchVisibility);
@@ -253,8 +251,8 @@ public class NavigateTitleView extends TitleView implements OnDataChange, Accoun
         mIsLanguageViewEnabled = mainUIData.isTopButtonEnabled(MainUIData.TOP_BUTTON_CHANGE_LANGUAGE);
         mIsGlobalClockEnabled = GeneralData.instance(getContext()).isGlobalClockEnabled();
 
-        mSearchOrbView.setVisibility(mIsSearchOrbEnabled ? View.VISIBLE : View.GONE);
-        mAccountView.setVisibility(mIsAccountViewEnabled ? View.VISIBLE : View.GONE);
+        mSearchOrbView.setVisibility(View.GONE); // MOD: moved to the sidebar rail
+        mAccountView.setVisibility(View.GONE); // MOD: moved to the sidebar rail
         mLanguageView.setVisibility(mIsLanguageViewEnabled ? View.VISIBLE : View.GONE);
         mGlobalClock.setVisibility(mIsGlobalClockEnabled ? View.VISIBLE : View.GONE);
         mGlobalDate.setVisibility(mIsGlobalClockEnabled ? View.VISIBLE : View.GONE);

@@ -1452,7 +1452,11 @@ public class BrowseSupportFragment extends BaseSupportFragment {
         containerList = mHeadersSupportFragment.getView();
         lp = (MarginLayoutParams) containerList.getLayoutParams();
         // MOD: when collapsed leave an icons-only rail visible instead of hiding the sidebar completely
-        lp.setMarginStart(onScreen ? 0 : -(mContainerListMarginStart - getHeadersRailWidth()));
+        // Collapse by shrinking the width (not by sliding off-screen) so the START side (icons) stays visible
+        lp.setMarginStart(0);
+        lp.width = onScreen
+                ? getContext().getResources().getDimensionPixelSize(R.dimen.lb_browse_headers_width)
+                : getHeadersRailWidth();
         containerList.setLayoutParams(lp);
     }
 
