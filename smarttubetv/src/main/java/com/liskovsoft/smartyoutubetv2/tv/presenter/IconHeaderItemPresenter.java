@@ -65,6 +65,11 @@ public class IconHeaderItemPresenter extends RowHeaderPresenter {
 
         ImageView iconView = rootView.findViewById(R.id.header_icon);
         if (iconView != null) {
+            // Layout tints icons with a focus selector (dark on white pill). Remote icons (channel avatars) must keep original colors.
+            if (mIconUrl != null) {
+                iconView.setImageTintList(null);
+                iconView.setPadding(0, 0, 0, 0);
+            }
             if (mIconUrl != null) {
                 Glide.with(rootView.getContext())
                         .load(mIconUrl)

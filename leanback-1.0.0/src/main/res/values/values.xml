@@ -648,6 +648,7 @@
     <dimen name="lb_browse_header_text_size">20sp</dimen>
     <dimen name="lb_browse_headers_vertical_spacing">21dp</dimen>
     <dimen name="lb_browse_headers_width">270dp</dimen>
+    <dimen name="lb_browse_headers_rail_width">72dp</dimen>
     <dimen name="lb_browse_headers_z">@dimen/lb_material_shadow_focused_z</dimen>
     <dimen name="lb_browse_item_horizontal_spacing">8dp</dimen>
     <dimen name="lb_browse_item_vertical_spacing">8dp</dimen>

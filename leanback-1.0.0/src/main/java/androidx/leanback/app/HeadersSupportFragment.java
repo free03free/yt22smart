@@ -186,11 +186,8 @@ public class HeadersSupportFragment extends BaseRowSupportFragment {
         if (listView != null) {
             getView().setVisibility(mHeadersGone ? View.GONE : View.VISIBLE);
             if (!mHeadersGone) {
-                if (mHeadersEnabled) {
-                    listView.setChildrenVisibility(View.VISIBLE);
-                } else {
-                    listView.setChildrenVisibility(View.INVISIBLE);
-                }
+                // MOD: YouTube TV style - keep items visible when collapsed (icons-only rail)
+                listView.setChildrenVisibility(View.VISIBLE);
             }
         }
     }

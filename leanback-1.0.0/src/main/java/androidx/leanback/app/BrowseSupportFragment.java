@@ -1451,8 +1451,14 @@ public class BrowseSupportFragment extends BaseSupportFragment {
         View containerList;
         containerList = mHeadersSupportFragment.getView();
         lp = (MarginLayoutParams) containerList.getLayoutParams();
-        lp.setMarginStart(onScreen ? 0 : -mContainerListMarginStart);
+        // MOD: when collapsed leave an icons-only rail visible instead of hiding the sidebar completely
+        lp.setMarginStart(onScreen ? 0 : -(mContainerListMarginStart - getHeadersRailWidth()));
         containerList.setLayoutParams(lp);
+    }
+
+    private int getHeadersRailWidth() {
+        return getContext() != null
+                ? getContext().getResources().getDimensionPixelSize(R.dimen.lb_browse_headers_rail_width) : 0;
     }
 
     void showHeaders(boolean show) {
@@ -1464,7 +1470,7 @@ public class BrowseSupportFragment extends BaseSupportFragment {
 
     private void expandMainFragment(boolean expand) {
         MarginLayoutParams params = (MarginLayoutParams) mScaleFrameLayout.getLayoutParams();
-        params.setMarginStart(!expand ? mContainerListMarginStart : 0);
+        params.setMarginStart(!expand ? mContainerListMarginStart : getHeadersRailWidth()); // MOD: leave space for the rail
         mScaleFrameLayout.setLayoutParams(params);
         mMainFragmentAdapter.setExpand(expand);
 

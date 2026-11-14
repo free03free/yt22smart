@@ -52,7 +52,7 @@
 
     <!-- Increase this value to hide left strip from Browse fragment (when headers collapsed) -->
     <!-- Old value: 238dp -->
-    <dimen name="lb_browse_rows_margin_start">265dp</dimen>
+    <!-- MOD: moved to sidebar_youtube_tv.xml -->
 
     <!-- Make search bar more compact so more buttons could be added after it. -->
     <dimen name="lb_search_bar_items_width">600dp</dimen>
