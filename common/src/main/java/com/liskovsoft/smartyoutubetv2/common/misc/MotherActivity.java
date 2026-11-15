@@ -78,6 +78,7 @@ public class MotherActivity extends FragmentActivity {
         mIsFullscreenModeEnabled = GeneralData.instance(this).isFullscreenModeEnabled();
 
         initDpi();
+        applyUiDirection();
         initFontScaler();
         initTheme();
 
@@ -293,6 +294,24 @@ public class MotherActivity extends FragmentActivity {
         return sCachedDisplayMetrics;
     }
 
+    /**
+     * UI direction override (settings): auto = follow the language, otherwise force RTL or LTR.
+     * Overrides the configuration layout direction (the window root view follows it), so "ldrtl" resources are picked correctly.
+     * NOTE: don't touch the decor view here - it is called before setTheme().
+     */
+    private void applyUiDirection() {
+        int mode = MainUIData.instance(this).getUiDirection();
+        if (mode == MainUIData.UI_DIRECTION_AUTO) {
+            return;
+        }
+
+        boolean rtl = mode == MainUIData.UI_DIRECTION_RTL;
+        android.content.res.Resources res = getResources();
+        Configuration config = new Configuration(res.getConfiguration());
+        config.setLayoutDirection(rtl ? new java.util.Locale("ar") : java.util.Locale.ENGLISH);
+        res.updateConfiguration(config, res.getDisplayMetrics());
+    }
+
     private void applyCustomConfig() {
         // NOTE: dpi should come after locale update to prevent resources overriding.
 
@@ -303,6 +322,9 @@ public class MotherActivity extends FragmentActivity {
         // Fix sudden dpi change.
         // Could happen when screen goes off or after PIP mode.
         initDpi();
+
+        // locale update resets the layout direction
+        applyUiDirection();
     }
 
     private void applyFullscreenModeIfNeeded() {

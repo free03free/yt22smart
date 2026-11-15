@@ -51,6 +51,7 @@ public class MainUISettingsPresenter extends BasePresenter<Void> {
 
         appendTopButtonsCategory(settingsPresenter);
         appendColorScheme(settingsPresenter);
+        appendUiDirection(settingsPresenter);
         if (Build.VERSION.SDK_INT > 19) {
             appendCardTextScrollSpeed(settingsPresenter);
         }
@@ -88,6 +89,24 @@ public class MainUISettingsPresenter extends BasePresenter<Void> {
         }
 
         settingsPresenter.appendCheckedCategory(getContext().getString(R.string.various_buttons), options);
+    }
+
+    private void appendUiDirection(AppDialogPresenter settingsPresenter) {
+        List<OptionItem> options = new ArrayList<>();
+
+        for (int[] pair : new int[][] {
+                {R.string.ui_direction_auto, MainUIData.UI_DIRECTION_AUTO},
+                {R.string.ui_direction_rtl, MainUIData.UI_DIRECTION_RTL},
+                {R.string.ui_direction_ltr, MainUIData.UI_DIRECTION_LTR}}) {
+            options.add(UiOptionItem.from(getContext().getString(pair[0]),
+                    optionItem -> {
+                        mMainUIData.setUiDirection(pair[1]);
+                        mRestartApp = true;
+                    },
+                    mMainUIData.getUiDirection() == pair[1]));
+        }
+
+        settingsPresenter.appendRadioCategory(getContext().getString(R.string.ui_direction), options);
     }
 
     private void appendColorScheme(AppDialogPresenter settingsPresenter) {
