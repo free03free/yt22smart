@@ -5,6 +5,9 @@ public final class SidebarMode {
     public static volatile boolean rail = false;
     /** Rail item height in px (0 = layout default). Computed so that all sections fit on the screen. */
     public static volatile int itemHeightPx = 0;
+    /** Rail icon size and start padding in px, measured from the real rail width (independent of dp/density quirks). */
+    public static volatile int iconPx = 0;
+    public static volatile int padStartPx = 0;
 
     private SidebarMode() {
     }

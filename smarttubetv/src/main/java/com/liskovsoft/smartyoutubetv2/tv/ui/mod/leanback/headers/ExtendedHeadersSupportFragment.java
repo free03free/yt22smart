@@ -37,6 +37,7 @@ public class ExtendedHeadersSupportFragment extends HeadersSupportFragment {
     }
 
     private OnHeaderLongPressedListener mOnHeaderLongPressedListener;
+    private View mRailTop;
     private View mRailSearch;
     private View mRailAccount;
 
@@ -67,11 +68,22 @@ public class ExtendedHeadersSupportFragment extends HeadersSupportFragment {
         root.setPaddingRelative(root.getPaddingStart(), root.getPaddingTop(), 0, root.getPaddingBottom());
 
         View top = LayoutInflater.from(root.getContext()).inflate(R.layout.headers_rail_top, (ViewGroup) root, false);
-        RelativeLayout.LayoutParams lp = new RelativeLayout.LayoutParams(top.getLayoutParams().width, ViewGroup.LayoutParams.WRAP_CONTENT);
+        // Same px width as the collapsed sidebar (BrowseSupportFragment.getHeadersRailWidth) so buttons and icons share one center line
+        int railPx = top.getLayoutParams().width;
+        int railResId = root.getResources().getIdentifier("lb_browse_headers_rail_width", "dimen", root.getContext().getPackageName());
+        if (railResId != 0) {
+            railPx = root.getResources().getDimensionPixelSize(railResId);
+        }
+        RelativeLayout.LayoutParams lp = new RelativeLayout.LayoutParams(railPx, ViewGroup.LayoutParams.WRAP_CONTENT);
         lp.addRule(RelativeLayout.ALIGN_PARENT_TOP);
         lp.addRule(RelativeLayout.ALIGN_PARENT_START);
         ((ViewGroup) root).addView(top, lp);
 
+        mRailTop = top;
+        // a fresh start: sizes are measured again for the current orientation
+        androidx.leanback.widget.SidebarMode.itemHeightPx = 0;
+        androidx.leanback.widget.SidebarMode.iconPx = 0;
+        androidx.leanback.widget.SidebarMode.padStartPx = 0;
         mRailSearch = top.findViewById(R.id.rail_search);
         mRailAccount = top.findViewById(R.id.rail_account);
         setupRailKeys();
@@ -121,23 +133,35 @@ public class ExtendedHeadersSupportFragment extends HeadersSupportFragment {
         grid.setPaddingRelative(0, (int) (94 * density), grid.getPaddingEnd(), (int) (4 * density));
     }
 
-    /** Pick the biggest item height (30..48dp) that lets all sections fit on screen without scrolling. */
+    /**
+     * Size rail items from the REAL rail width (px), so icons are always centered and never clipped,
+     * and pick the biggest item height that lets all sections fit on screen without scrolling.
+     */
     private void fitRailItems() {
         androidx.leanback.widget.VerticalGridView grid = getVerticalGridView();
-        if (grid == null || grid.getAdapter() == null) {
+        if (grid == null || grid.getAdapter() == null || mRailTop == null) {
             return;
         }
 
+        int railW = mRailTop.getWidth(); // inflated at exactly the rail width
         int count = grid.getAdapter().getItemCount();
         int avail = grid.getHeight() - grid.getPaddingTop() - grid.getPaddingBottom();
-        if (count <= 0 || avail <= 0) {
+        if (railW <= 0 || count <= 0 || avail <= 0) {
             return;
         }
 
-        float density = grid.getResources().getDisplayMetrics().density;
-        int h = Math.max((int) (30 * density), Math.min((int) (48 * density), avail / count));
-        if (h != androidx.leanback.widget.SidebarMode.itemHeightPx) {
+        float unit = railW / 72f; // px per "rail dp"
+        int h = Math.max((int) (30 * unit), Math.min((int) (48 * unit), avail / count));
+        int icon = Math.min((int) (32 * unit), h - (int) (6 * unit));
+        int padStart = Math.max(0, (railW - icon) / 2);
+
+        if (h != androidx.leanback.widget.SidebarMode.itemHeightPx
+                || icon != androidx.leanback.widget.SidebarMode.iconPx
+                || padStart != androidx.leanback.widget.SidebarMode.padStartPx) {
             androidx.leanback.widget.SidebarMode.itemHeightPx = h;
+            androidx.leanback.widget.SidebarMode.iconPx = icon;
+            androidx.leanback.widget.SidebarMode.padStartPx = padStart;
+            grid.setVerticalSpacing(0);
             if (getBridgeAdapter() != null) {
                 getBridgeAdapter().notifyDataSetChanged();
             }
