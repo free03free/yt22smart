@@ -174,7 +174,9 @@ public class NavigateTitleView extends TitleView implements OnDataChange, Accoun
             mSearchOrbView.setVisibility(View.GONE);
         }
 
-        // MOD: account button moved to the sidebar rail
+        if (!androidx.leanback.widget.SidebarMode.rail && mIsAccountViewEnabled) {
+            mAccountView.setVisibility(mSearchVisibility);
+        }
 
         if (mIsLanguageViewEnabled) {
             mLanguageView.setVisibility(mSearchVisibility);
@@ -213,6 +215,17 @@ public class NavigateTitleView extends TitleView implements OnDataChange, Accoun
         MainUIData mainUIData = MainUIData.instance(getContext());
 
         mSearchOrbView = findViewById(R.id.title_orb);
+        if (androidx.leanback.widget.SidebarMode.rail) {
+            // other code keeps re-showing the orb: zero size + transparent + unfocusable
+            mSearchOrbView.setAlpha(0f);
+            mSearchOrbView.setFocusable(false);
+            android.view.ViewGroup.LayoutParams orbLp = mSearchOrbView.getLayoutParams();
+            if (orbLp != null) {
+                orbLp.width = 0;
+                orbLp.height = 0;
+                mSearchOrbView.setLayoutParams(orbLp);
+            }
+        }
 
         mAccountView = findViewById(R.id.account_orb);
         mAccountView.setOnOrbClickedListener(v -> AccountSelectionPresenter.instance(getContext()).nextAccountOrDialog());
@@ -251,8 +264,14 @@ public class NavigateTitleView extends TitleView implements OnDataChange, Accoun
         mIsLanguageViewEnabled = mainUIData.isTopButtonEnabled(MainUIData.TOP_BUTTON_CHANGE_LANGUAGE);
         mIsGlobalClockEnabled = GeneralData.instance(getContext()).isGlobalClockEnabled();
 
-        mSearchOrbView.setVisibility(View.GONE); // MOD: moved to the sidebar rail
-        mAccountView.setVisibility(View.GONE); // MOD: moved to the sidebar rail
+        if (androidx.leanback.widget.SidebarMode.rail) {
+            // MOD: search/account buttons live in the sidebar rail; make the title orb permanently invisible
+            mSearchOrbView.setVisibility(View.GONE);
+            mAccountView.setVisibility(View.GONE);
+        } else {
+            mSearchOrbView.setVisibility(mIsSearchOrbEnabled ? View.VISIBLE : View.GONE);
+            mAccountView.setVisibility(mIsAccountViewEnabled ? View.VISIBLE : View.GONE);
+        }
         mLanguageView.setVisibility(mIsLanguageViewEnabled ? View.VISIBLE : View.GONE);
         mGlobalClock.setVisibility(mIsGlobalClockEnabled ? View.VISIBLE : View.GONE);
         mGlobalDate.setVisibility(mIsGlobalClockEnabled ? View.VISIBLE : View.GONE);

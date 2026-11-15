@@ -113,6 +113,7 @@ public class MainUIData extends DataChangeBase implements ProfileChangeListener 
     private int mChannelCategorySorting;
     private int mPlaylistsStyle;
     private boolean mIsUploadsOldLookEnabled;
+    private boolean mIsRailSidebarEnabled;
     private boolean mIsUploadsAutoLoadEnabled;
     private float mCardTextScrollSpeed;
     private long mMenuItems;
@@ -287,6 +288,15 @@ public class MainUIData extends DataChangeBase implements ProfileChangeListener 
 
     public void setPlaylistsStyle(int type) {
         mPlaylistsStyle = type;
+        persistState();
+    }
+
+    public boolean isRailSidebarEnabled() {
+        return mIsRailSidebarEnabled;
+    }
+
+    public void setRailSidebarEnabled(boolean enable) {
+        mIsRailSidebarEnabled = enable;
         persistState();
     }
 
@@ -611,6 +621,7 @@ public class MainUIData extends DataChangeBase implements ProfileChangeListener 
         mFontScales[10] = Helpers.parseFloat(split, 39, 1.0f);
         mFontScales[11] = Helpers.parseFloat(split, 40, 1.0f);
         mFontScales[12] = Helpers.parseFloat(split, 41, 1.0f);
+        mIsRailSidebarEnabled = Helpers.parseBoolean(split, 42, false); // default: original sidebar
 
         int idx = -1;
         for (Long menuItem : MENU_ITEM_DEFAULT_ORDER) {
@@ -659,7 +670,7 @@ public class MainUIData extends DataChangeBase implements ProfileChangeListener 
                 null, mThumbQuality, mIsCardMultilineSubtitleEnabled, Helpers.mergeList(mMenuItemsOrdered),
                 mIsChannelsFilterEnabled, mIsChannelSearchBarEnabled, mIsPinnedChannelRowsEnabled, mCardPreviewType,
                 mIsUnlocalizedTitlesEnabled, mUiTweaks,
-                mRowTitleScale, mRowTitleColor, mIsRowTitleBold, mFontScale, null, mFontScales[0], mFontScales[1], mFontScales[2], mFontScales[3], mFontScales[4], mFontScales[5], mFontScales[6], mFontScales[7], mFontScales[8], mFontScales[9], mFontScales[10], mFontScales[11], mFontScales[12]));
+                mRowTitleScale, mRowTitleColor, mIsRowTitleBold, mFontScale, null, mFontScales[0], mFontScales[1], mFontScales[2], mFontScales[3], mFontScales[4], mFontScales[5], mFontScales[6], mFontScales[7], mFontScales[8], mFontScales[9], mFontScales[10], mFontScales[11], mFontScales[12], mIsRailSidebarEnabled));
     }
 
     public static class ColorScheme {

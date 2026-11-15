@@ -359,6 +359,13 @@ public class MainUISettingsPresenter extends BasePresenter<Void> {
                 option -> mPlayerData.setGlobalEndingTimeEnabled(option.isSelected()),
                 mPlayerData.isGlobalEndingTimeEnabled()));
 
+        options.add(UiOptionItem.from(getContext().getString(R.string.sidebar_rail_mode),
+                optionItem -> {
+                    mMainUIData.setRailSidebarEnabled(optionItem.isSelected());
+                    mRestartApp = true;
+                },
+                mMainUIData.isRailSidebarEnabled()));
+
         options.add(UiOptionItem.from(getContext().getString(R.string.channels_old_look),
                 optionItem -> {
                     mMainUIData.setUploadsOldLookEnabled(optionItem.isSelected());

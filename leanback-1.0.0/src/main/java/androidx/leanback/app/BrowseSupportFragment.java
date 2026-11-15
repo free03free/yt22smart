@@ -1452,11 +1452,15 @@ public class BrowseSupportFragment extends BaseSupportFragment {
         containerList = mHeadersSupportFragment.getView();
         lp = (MarginLayoutParams) containerList.getLayoutParams();
         // MOD: when collapsed leave an icons-only rail visible instead of hiding the sidebar completely
-        // Collapse by shrinking the width (not by sliding off-screen) so the START side (icons) stays visible
-        lp.setMarginStart(0);
-        lp.width = onScreen
-                ? getContext().getResources().getDimensionPixelSize(R.dimen.lb_browse_headers_width)
-                : getHeadersRailWidth();
+        if (androidx.leanback.widget.SidebarMode.rail) {
+            // Collapse by shrinking the width (not by sliding off-screen) so the START side (icons) stays visible
+            lp.setMarginStart(0);
+            lp.width = onScreen
+                    ? getContext().getResources().getDimensionPixelSize(R.dimen.lb_browse_headers_width)
+                    : getHeadersRailWidth();
+        } else {
+            lp.setMarginStart(onScreen ? 0 : -mContainerListMarginStart);
+        }
         containerList.setLayoutParams(lp);
     }
 
@@ -1474,7 +1478,9 @@ public class BrowseSupportFragment extends BaseSupportFragment {
 
     private void expandMainFragment(boolean expand) {
         MarginLayoutParams params = (MarginLayoutParams) mScaleFrameLayout.getLayoutParams();
-        params.setMarginStart(getHeadersRailWidth()); // MOD: YouTube TV style - content stays in place, expanded sidebar overlays it
+        params.setMarginStart(androidx.leanback.widget.SidebarMode.rail
+                ? getHeadersRailWidth() // MOD: YouTube TV style - content stays in place, expanded sidebar overlays it
+                : (!expand ? mContainerListMarginStart : 0));
         mScaleFrameLayout.setLayoutParams(params);
         mMainFragmentAdapter.setExpand(expand);
 

@@ -64,6 +64,10 @@ public class BrowseFragment extends BrowseSupportFragment implements BrowseView 
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        if (getContext() != null) {
+            androidx.leanback.widget.SidebarMode.rail = com.liskovsoft.smartyoutubetv2.common.prefs.MainUIData.instance(getContext()).isRailSidebarEnabled();
+        }
+
         super.onCreate(null);
 
         if (getContext() == null) {

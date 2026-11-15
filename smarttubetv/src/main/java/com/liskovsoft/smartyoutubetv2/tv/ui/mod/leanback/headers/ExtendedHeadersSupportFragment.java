@@ -50,7 +50,9 @@ public class ExtendedHeadersSupportFragment extends HeadersSupportFragment {
     @Override
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
-        addRailTop(view);
+        if (androidx.leanback.widget.SidebarMode.rail) {
+            addRailTop(view);
+        }
     }
 
     /** YouTube TV style: account + search buttons live at the top of the sidebar rail. */
@@ -65,6 +67,14 @@ public class ExtendedHeadersSupportFragment extends HeadersSupportFragment {
         lp.addRule(RelativeLayout.ALIGN_PARENT_START);
         ((ViewGroup) root).addView(top, lp);
 
+        // Keep the section list below the account/search buttons (≈ 6 + 44 + 4 + 44 + 6 dp)
+        androidx.leanback.widget.VerticalGridView grid = getVerticalGridView();
+        if (grid != null && grid.getLayoutParams() instanceof ViewGroup.MarginLayoutParams) {
+            ViewGroup.MarginLayoutParams glp = (ViewGroup.MarginLayoutParams) grid.getLayoutParams();
+            glp.topMargin = (int) (104 * root.getResources().getDisplayMetrics().density);
+            grid.setLayoutParams(glp);
+        }
+
         top.findViewById(R.id.rail_search).setOnClickListener(v ->
                 SearchPresenter.instance(root.getContext()).startSearch(null));
 
@@ -76,6 +86,25 @@ public class ExtendedHeadersSupportFragment extends HeadersSupportFragment {
         });
         updateRailAccountIcon(account);
         account.postDelayed(() -> updateRailAccountIcon(account), 1_500); // avatar url may arrive later
+    }
+
+    /** YouTube TV style: a plain list that scrolls only when needed (stock leanback pins the selected item at a fixed offset). */
+    @Override
+    public void setAlignment(int windowAlignOffsetTop) {
+        if (!androidx.leanback.widget.SidebarMode.rail) {
+            super.setAlignment(windowAlignOffsetTop);
+            return;
+        }
+
+        androidx.leanback.widget.VerticalGridView grid = getVerticalGridView();
+        if (grid != null) {
+            grid.setPaddingRelative(0, grid.getPaddingTop(), grid.getPaddingEnd(), grid.getPaddingBottom()); // icons must start at the rail edge
+            grid.setItemAlignmentOffset(0);
+            grid.setItemAlignmentOffsetPercent(androidx.leanback.widget.VerticalGridView.ITEM_ALIGN_OFFSET_PERCENT_DISABLED);
+            grid.setWindowAlignmentOffset(0);
+            grid.setWindowAlignmentOffsetPercent(50f);
+            grid.setWindowAlignment(androidx.leanback.widget.VerticalGridView.WINDOW_ALIGN_BOTH_EDGE);
+        }
     }
 
     private void updateRailAccountIcon(ImageView account) {

@@ -94,7 +94,7 @@ public class HeadersSupportFragment extends BaseRowSupportFragment {
 
     public HeadersSupportFragment() {
         setPresenterSelector(sHeaderPresenter);
-        FocusHighlightHelper.setupHeaderItemFocusHighlight(getBridgeAdapter());
+        FocusHighlightHelper.setupHeaderItemFocusHighlight(getBridgeAdapter(), true); // MOD: zoom stays as in the original app (the rail pill is the focus indicator, scale is harmless)
     }
 
     public void setOnHeaderClickedListener(OnHeaderClickedListener listener) {
@@ -187,7 +187,11 @@ public class HeadersSupportFragment extends BaseRowSupportFragment {
             getView().setVisibility(mHeadersGone ? View.GONE : View.VISIBLE);
             if (!mHeadersGone) {
                 // MOD: YouTube TV style - keep items visible when collapsed (icons-only rail)
-                listView.setChildrenVisibility(View.VISIBLE);
+                if (mHeadersEnabled || androidx.leanback.widget.SidebarMode.rail) {
+                    listView.setChildrenVisibility(View.VISIBLE);
+                } else {
+                    listView.setChildrenVisibility(View.INVISIBLE);
+                }
             }
         }
     }

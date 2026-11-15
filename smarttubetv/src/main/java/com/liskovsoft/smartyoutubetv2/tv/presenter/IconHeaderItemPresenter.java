@@ -38,13 +38,13 @@ public class IconHeaderItemPresenter extends RowHeaderPresenter {
 
     @Override
     public ViewHolder onCreateViewHolder(ViewGroup viewGroup) {
-        mUnselectedAlpha = viewGroup.getResources()
+        mUnselectedAlpha = androidx.leanback.widget.SidebarMode.rail ? 0.85f : viewGroup.getResources()
                 .getFraction(R.fraction.lb_browse_header_unselect_alpha, 1, 1);
         LayoutInflater inflater = (LayoutInflater) viewGroup.getContext()
                 .getSystemService(Context.LAYOUT_INFLATER_SERVICE);
         mDefaultIcon = new ColorDrawable(ContextCompat.getColor(viewGroup.getContext(), R.color.lb_grey));
 
-        View view = inflater.inflate(R.layout.icon_header_item, null);
+        View view = inflater.inflate(androidx.leanback.widget.SidebarMode.rail ? R.layout.icon_header_item_rail : R.layout.icon_header_item, null);
         view.setAlpha(mUnselectedAlpha); // Initialize icons to be at half-opacity.
 
         return new ViewHolder(view);
@@ -66,7 +66,7 @@ public class IconHeaderItemPresenter extends RowHeaderPresenter {
         ImageView iconView = rootView.findViewById(R.id.header_icon);
         if (iconView != null) {
             // Layout tints icons with a focus selector (dark on white pill). Remote icons (channel avatars) must keep original colors.
-            if (mIconUrl != null) {
+            if (mIconUrl != null && androidx.leanback.widget.SidebarMode.rail) {
                 iconView.setImageTintList(null);
                 iconView.setPadding(0, 0, 0, 0);
             }

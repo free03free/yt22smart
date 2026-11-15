@@ -122,7 +122,7 @@ public class RowHeaderPresenter extends Presenter {
                 mOriginalTextSize = mTitleView.getTextSize();
             }
 
-            mUnselectAlpha = view.getResources().getFraction(
+            mUnselectAlpha = SidebarMode.rail ? 0.85f : view.getResources().getFraction(
                     R.fraction.lb_browse_header_unselect_alpha, 1, 1);
         }
 
