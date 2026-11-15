@@ -1479,7 +1479,7 @@ public class BrowseSupportFragment extends BaseSupportFragment {
     private void expandMainFragment(boolean expand) {
         MarginLayoutParams params = (MarginLayoutParams) mScaleFrameLayout.getLayoutParams();
         params.setMarginStart(androidx.leanback.widget.SidebarMode.rail
-                ? getHeadersRailWidth() // MOD: YouTube TV style - content stays in place, expanded sidebar overlays it
+                ? getHeadersRailWidth() + (int) (12 * getResources().getDisplayMetrics().density) // MOD: YouTube TV style - content stays in place, expanded sidebar overlays it
                 : (!expand ? mContainerListMarginStart : 0));
         mScaleFrameLayout.setLayoutParams(params);
         mMainFragmentAdapter.setExpand(expand);

@@ -63,6 +63,9 @@ public class ExtendedHeadersSupportFragment extends HeadersSupportFragment {
             return;
         }
 
+        // Sidebar root has an end padding (outside the gray list area) that pushes icons off-center in the narrow rail
+        root.setPaddingRelative(root.getPaddingStart(), root.getPaddingTop(), 0, root.getPaddingBottom());
+
         View top = LayoutInflater.from(root.getContext()).inflate(R.layout.headers_rail_top, (ViewGroup) root, false);
         RelativeLayout.LayoutParams lp = new RelativeLayout.LayoutParams(top.getLayoutParams().width, ViewGroup.LayoutParams.WRAP_CONTENT);
         lp.addRule(RelativeLayout.ALIGN_PARENT_TOP);
