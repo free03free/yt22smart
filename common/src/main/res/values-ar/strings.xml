@@ -1578,4 +1578,5 @@
     <string name="ui_direction_auto">تلقائي (حسب اللغة)</string>
     <string name="ui_direction_rtl">من اليمين إلى اليسار</string>
     <string name="ui_direction_ltr">من اليسار إلى اليمين</string>
+    <string name="video_buffer_size_full">الفيديو كاملاً</string>
 </resources>

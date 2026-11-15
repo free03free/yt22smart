@@ -329,6 +329,7 @@ public class AppDialogUtil {
         optionItems.add(createVideoBufferOption(context, playerData, R.string.video_buffer_size_med, PlayerData.BUFFER_MEDIUM, onBufferSelected));
         optionItems.add(createVideoBufferOption(context, playerData, R.string.video_buffer_size_high, PlayerData.BUFFER_HIGH, onBufferSelected));
         optionItems.add(createVideoBufferOption(context, playerData, R.string.video_buffer_size_highest, PlayerData.BUFFER_HIGHEST, onBufferSelected));
+        optionItems.add(createVideoBufferOption(context, playerData, R.string.video_buffer_size_full, PlayerData.BUFFER_FULL, onBufferSelected));
         return OptionCategory.from(VIDEO_BUFFER_ID, OptionCategory.TYPE_RADIO_LIST, videoBufferTitle, optionItems);
     }
 

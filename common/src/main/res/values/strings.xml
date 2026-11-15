@@ -1586,4 +1586,5 @@
     <string name="ui_direction_auto">Auto (follow language)</string>
     <string name="ui_direction_rtl">Right to left</string>
     <string name="ui_direction_ltr">Left to right</string>
+    <string name="video_buffer_size_full">Entire video</string>
 </resources>

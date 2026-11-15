@@ -18,6 +18,7 @@ public interface PlayerConstants {
     int BUFFER_MEDIUM = 0;
     int BUFFER_HIGH = 1;
     int BUFFER_HIGHEST = 2;
+    int BUFFER_FULL = 4; // load the whole video (as much as memory allows)
     int RESIZE_MODE_DEFAULT = AspectRatioFrameLayout.RESIZE_MODE_FIT;
     int RESIZE_MODE_FIT_WIDTH = AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH;
     int RESIZE_MODE_FIT_HEIGHT = AspectRatioFrameLayout.RESIZE_MODE_FIXED_HEIGHT;

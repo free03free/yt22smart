@@ -93,6 +93,9 @@ public class ExoPlayerInitializer {
         return sAudioAttributes;
     }
 
+    /** How much already played video is kept for an instant rewind (default/medium profile) */
+    private static final int BACK_BUFFER_MS = 60_000;
+
     /**
      * Increase player's min/max buffer size to 60 secs
      * @return load control
@@ -112,20 +115,32 @@ public class ExoPlayerInitializer {
         int bufferForPlaybackMs = 2_500;
         int bufferForPlaybackAfterRebufferMs = 5_000;
 
+        // YouTube-like rewind: keep already played data in memory, so seeking back inside it
+        // resumes instantly instead of downloading the video again.
+        // The memory is bounded: by duration (back buffer) and by bytes (target buffer size, ~RAM/18).
+        baseBuilder.setBackBuffer(BACK_BUFFER_MS, true);
+        baseBuilder.setTargetBufferBytes(mMaxBufferBytes);
+
         switch (mPlayerData.getVideoBufferType()) {
             case PlayerData.BUFFER_HIGHEST:
                 minBufferMs = 50_000;
                 maxBufferMs = 100_000;
                 // Infinite buffer works awfully on live streams. Constant stuttering.
                 //maxBufferMs = 36_000_000; // technical infinity, recommended here a very high number, the max will be based on setTargetBufferBytes() value
-                baseBuilder
-                        .setTargetBufferBytes(mMaxBufferBytes);
-                baseBuilder.setBackBuffer(minBufferMs, true);
+                baseBuilder.setBackBuffer(BACK_BUFFER_MS * 2, true);
+                break;
+            case PlayerData.BUFFER_FULL:
+                // Load the whole video like the official YouTube app: no time limit, only the memory limit (RAM/18).
+                // NOTE: not suitable for live streams (constant stuttering) - use "Highest" for them.
+                minBufferMs = 50_000;
+                maxBufferMs = 36_000_000; // technical infinity
+                baseBuilder.setPrioritizeTimeOverSizeThresholds(false); // stop at the memory limit, never go out of memory
+                baseBuilder.setBackBuffer(1_800_000, true); // keep up to 30 min already played: instant rewind
                 break;
             case PlayerData.BUFFER_HIGH:
                 minBufferMs = 50_000;
                 maxBufferMs = 50_000;
-                baseBuilder.setBackBuffer(minBufferMs, true);
+                baseBuilder.setBackBuffer(BACK_BUFFER_MS * 2, true);
                 break;
             case PlayerData.BUFFER_MEDIUM:
                 //minBufferMs = 30_000;
@@ -134,6 +149,7 @@ public class ExoPlayerInitializer {
             case PlayerData.BUFFER_LOW:
                 minBufferMs = 5_000; // LIVE fix
                 maxBufferMs = 5_000; // LIVE fix
+                baseBuilder.setBackBuffer(BACK_BUFFER_MS / 3, true); // low memory profile: shorter rewind cache
                 //bufferForPlaybackMs = 1_000;
                 //bufferForPlaybackAfterRebufferMs = 1_000;
                 break;

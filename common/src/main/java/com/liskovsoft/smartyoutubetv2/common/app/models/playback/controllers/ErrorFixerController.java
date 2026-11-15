@@ -239,7 +239,7 @@ public class ErrorFixerController extends BasePlayerController implements OnLong
             if (getPlayerTweaksData().getPlayerDataSource() == PlayerTweaksData.PLAYER_DATA_SOURCE_OKHTTP) {
                 // OkHttp has memory leak problems
                 enableFasterDataSource();
-            } else if (getPlayerData().getVideoBufferType() == PlayerData.BUFFER_HIGH || getPlayerData().getVideoBufferType() == PlayerData.BUFFER_HIGHEST) {
+            } else if (getPlayerData().getVideoBufferType() == PlayerData.BUFFER_HIGH || getPlayerData().getVideoBufferType() == PlayerData.BUFFER_HIGHEST || getPlayerData().getVideoBufferType() == PlayerData.BUFFER_FULL) {
                 getPlayerData().setVideoBufferType(PlayerData.BUFFER_MEDIUM);
             } else {
                 lowerVideoQuality(); // NOTE: restart engine required
