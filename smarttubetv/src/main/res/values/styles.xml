@@ -23,6 +23,7 @@
     <!-- Decrease header spacing in BrowseView -->
     <style name="BrowseHeaderStyle" parent="Widget.Leanback.Headers.VerticalGridView">
         <item name="android:verticalSpacing">@dimen/browse_headers_vertical_spacing</item>
+        <item name="android:paddingStart">0dp</item> <!-- MOD: icons must start at the rail edge -->
     </style>
 
     <!-- Modern row header: bigger, bolder, bright white -->

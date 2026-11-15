@@ -29,8 +29,10 @@
                   android:layout_gravity="center_vertical|start">
         <androidx.leanback.widget.SearchOrbView
             android:id="@+id/title_orb"
-            android:layout_height="wrap_content"
-            android:layout_width="wrap_content"
+            android:layout_height="0dp"
+            android:layout_width="0dp"
+            android:focusable="false"
+            android:alpha="0"
             android:transitionGroup="true"
             android:layout_gravity="center_vertical|start"
             android:nextFocusRight="@id/account_orb"
