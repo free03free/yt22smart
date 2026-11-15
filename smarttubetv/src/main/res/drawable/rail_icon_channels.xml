@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- YouTube TV style outline icon (rail mode) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+    <path android:strokeColor="#FFFFFF" android:strokeWidth="1.7"
+        android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:pathData="M4,4 H20 V20 H4 Z M9.5,10.5 A2.5,2.5 0 1 0 14.5,10.5 A2.5,2.5 0 1 0 9.5,10.5 Z M7,19 C7,16.2 9,15 12,15 C15,15 17,16.2 17,19"/>
+</vector>

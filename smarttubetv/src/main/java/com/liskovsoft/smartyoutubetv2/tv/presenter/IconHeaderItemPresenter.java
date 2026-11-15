@@ -82,7 +82,16 @@ public class IconHeaderItemPresenter extends RowHeaderPresenter {
 
                 //ViewUtil.makeMonochrome(iconView);
             } else {
-                Drawable icon = mResId > 0 ? ContextCompat.getDrawable(rootView.getContext(), mResId) : mDefaultIcon;
+                int resId = mResId;
+                if (resId > 0 && androidx.leanback.widget.SidebarMode.rail) {
+                    // YouTube TV style: thin outline icons (rail_icon_<name>) instead of the filled ones
+                    android.content.res.Resources res = rootView.getResources();
+                    int railResId = res.getIdentifier("rail_" + res.getResourceEntryName(resId), "drawable", rootView.getContext().getPackageName());
+                    if (railResId != 0) {
+                        resId = railResId;
+                    }
+                }
+                Drawable icon = resId > 0 ? ContextCompat.getDrawable(rootView.getContext(), resId) : mDefaultIcon;
                 iconView.setImageDrawable(icon);
             }
         }
