@@ -71,7 +71,7 @@
     <color name="lb_speech_orb_not_recording">@color/orb_color</color>
     <color name="lb_speech_orb_not_recording_pulsed">@color/orb_bright_color</color>
     <color name="lb_speech_orb_not_recording_icon">@color/orb_icon_color</color>
-    <!-- Search field has a light (#EEEEEE) rounded background: use dark text/hint (stock leanback colors are for dark backgrounds) -->
-    <color name="lb_search_bar_text">#FF212121</color>
-    <color name="lb_search_bar_hint">#FF6B6B6B</color>
+    <!-- Search field has a white rounded background: use black text and a dark gray hint (stock leanback colors are for dark backgrounds) -->
+    <color name="lb_search_bar_text">#FF000000</color>
+    <color name="lb_search_bar_hint">#FF555555</color>
 </resources>
