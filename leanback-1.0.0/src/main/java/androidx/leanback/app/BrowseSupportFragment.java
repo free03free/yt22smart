@@ -1474,7 +1474,7 @@ public class BrowseSupportFragment extends BaseSupportFragment {
 
     private void expandMainFragment(boolean expand) {
         MarginLayoutParams params = (MarginLayoutParams) mScaleFrameLayout.getLayoutParams();
-        params.setMarginStart(!expand ? mContainerListMarginStart : getHeadersRailWidth()); // MOD: leave space for the rail
+        params.setMarginStart(getHeadersRailWidth()); // MOD: YouTube TV style - content stays in place, expanded sidebar overlays it
         mScaleFrameLayout.setLayoutParams(params);
         mMainFragmentAdapter.setExpand(expand);
 
