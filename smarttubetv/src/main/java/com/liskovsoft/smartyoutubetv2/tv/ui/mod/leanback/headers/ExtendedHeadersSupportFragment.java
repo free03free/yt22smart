@@ -37,6 +37,8 @@ public class ExtendedHeadersSupportFragment extends HeadersSupportFragment {
     }
 
     private OnHeaderLongPressedListener mOnHeaderLongPressedListener;
+    private View mRailSearch;
+    private View mRailAccount;
 
     public ExtendedHeadersSupportFragment() {
         Helpers.setField(this, "mAdapterListener", mCustomAdapterListener);
@@ -67,12 +69,16 @@ public class ExtendedHeadersSupportFragment extends HeadersSupportFragment {
         lp.addRule(RelativeLayout.ALIGN_PARENT_START);
         ((ViewGroup) root).addView(top, lp);
 
-        // Keep the section list below the account/search buttons (≈ 6 + 44 + 4 + 44 + 6 dp)
+        mRailSearch = top.findViewById(R.id.rail_search);
+        mRailAccount = top.findViewById(R.id.rail_account);
+        setupRailKeys();
+
+        // Keep the section list below the account/search buttons. Padding (not margin) keeps the sidebar background uniform.
         androidx.leanback.widget.VerticalGridView grid = getVerticalGridView();
-        if (grid != null && grid.getLayoutParams() instanceof ViewGroup.MarginLayoutParams) {
-            ViewGroup.MarginLayoutParams glp = (ViewGroup.MarginLayoutParams) grid.getLayoutParams();
-            glp.topMargin = (int) (104 * root.getResources().getDisplayMetrics().density);
-            grid.setLayoutParams(glp);
+        if (grid != null) {
+            applyRailGridPadding(grid);
+            grid.setVerticalSpacing(0);
+            grid.getViewTreeObserver().addOnGlobalLayoutListener(this::fitRailItems);
         }
 
         top.findViewById(R.id.rail_search).setOnClickListener(v ->
@@ -98,13 +104,77 @@ public class ExtendedHeadersSupportFragment extends HeadersSupportFragment {
 
         androidx.leanback.widget.VerticalGridView grid = getVerticalGridView();
         if (grid != null) {
-            grid.setPaddingRelative(0, grid.getPaddingTop(), grid.getPaddingEnd(), grid.getPaddingBottom()); // icons must start at the rail edge
+            applyRailGridPadding(grid); // icons must start at the rail edge
             grid.setItemAlignmentOffset(0);
             grid.setItemAlignmentOffsetPercent(androidx.leanback.widget.VerticalGridView.ITEM_ALIGN_OFFSET_PERCENT_DISABLED);
             grid.setWindowAlignmentOffset(0);
             grid.setWindowAlignmentOffsetPercent(50f);
             grid.setWindowAlignment(androidx.leanback.widget.VerticalGridView.WINDOW_ALIGN_BOTH_EDGE);
         }
+    }
+
+    private void applyRailGridPadding(androidx.leanback.widget.VerticalGridView grid) {
+        float density = grid.getResources().getDisplayMetrics().density;
+        grid.setPaddingRelative(0, (int) (94 * density), grid.getPaddingEnd(), (int) (4 * density));
+    }
+
+    /** Pick the biggest item height (30..48dp) that lets all sections fit on screen without scrolling. */
+    private void fitRailItems() {
+        androidx.leanback.widget.VerticalGridView grid = getVerticalGridView();
+        if (grid == null || grid.getAdapter() == null) {
+            return;
+        }
+
+        int count = grid.getAdapter().getItemCount();
+        int avail = grid.getHeight() - grid.getPaddingTop() - grid.getPaddingBottom();
+        if (count <= 0 || avail <= 0) {
+            return;
+        }
+
+        float density = grid.getResources().getDisplayMetrics().density;
+        int h = Math.max((int) (30 * density), Math.min((int) (48 * density), avail / count));
+        if (h != androidx.leanback.widget.SidebarMode.itemHeightPx) {
+            androidx.leanback.widget.SidebarMode.itemHeightPx = h;
+            if (getBridgeAdapter() != null) {
+                getBridgeAdapter().notifyDataSetChanged();
+            }
+        }
+    }
+
+    /** Remote navigation between the rail buttons and the section list. */
+    private void setupRailKeys() {
+        mRailAccount.setOnKeyListener((v, keyCode, event) -> {
+            if (event.getAction() != KeyEvent.ACTION_DOWN) {
+                return false;
+            }
+            if (keyCode == KeyEvent.KEYCODE_DPAD_UP) {
+                return true; // nothing above: don't leave to the (hidden) title view
+            }
+            if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
+                mRailSearch.requestFocus();
+                return true;
+            }
+            return false;
+        });
+
+        mRailSearch.setOnKeyListener((v, keyCode, event) -> {
+            if (event.getAction() != KeyEvent.ACTION_DOWN) {
+                return false;
+            }
+            if (keyCode == KeyEvent.KEYCODE_DPAD_UP) {
+                mRailAccount.requestFocus();
+                return true;
+            }
+            if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
+                androidx.leanback.widget.VerticalGridView grid = getVerticalGridView();
+                if (grid != null) {
+                    grid.setSelectedPosition(0);
+                    grid.requestFocus();
+                }
+                return true;
+            }
+            return false;
+        });
     }
 
     private void updateRailAccountIcon(ImageView account) {
@@ -149,6 +219,14 @@ public class ExtendedHeadersSupportFragment extends HeadersSupportFragment {
 
                     // NEW CODE
                     headerView.setOnKeyListener((v, keyCode, event) -> {
+                        if (androidx.leanback.widget.SidebarMode.rail && mRailSearch != null
+                                && keyCode == KeyEvent.KEYCODE_DPAD_UP && viewHolder.getAdapterPosition() == 0) {
+                            if (event.getAction() == KeyEvent.ACTION_DOWN) {
+                                mRailSearch.requestFocus();
+                            }
+                            return true;
+                        }
+
                         if (mOnHeaderLongPressedListener != null) {
                             if (KeyHelpers.isMenuKey(keyCode)) {
                                 if (event.getAction() == KeyEvent.ACTION_DOWN) {

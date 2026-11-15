@@ -94,7 +94,7 @@ public class HeadersSupportFragment extends BaseRowSupportFragment {
 
     public HeadersSupportFragment() {
         setPresenterSelector(sHeaderPresenter);
-        FocusHighlightHelper.setupHeaderItemFocusHighlight(getBridgeAdapter(), true); // MOD: zoom stays as in the original app (the rail pill is the focus indicator, scale is harmless)
+        FocusHighlightHelper.setupHeaderItemFocusHighlight(getBridgeAdapter(), !androidx.leanback.widget.SidebarMode.rail); // MOD: no zoom in rail mode (the pill is the focus indicator)
     }
 
     public void setOnHeaderClickedListener(OnHeaderClickedListener listener) {

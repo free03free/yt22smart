@@ -62,6 +62,9 @@ public class IconHeaderItemPresenter extends RowHeaderPresenter {
 
         View rootView = viewHolder.view;
         rootView.setFocusable(true);
+        if (androidx.leanback.widget.SidebarMode.rail) {
+            applyRailSize(rootView);
+        }
 
         ImageView iconView = rootView.findViewById(R.id.header_icon);
         if (iconView != null) {
@@ -125,4 +128,32 @@ public class IconHeaderItemPresenter extends RowHeaderPresenter {
             return false;
         }
     };
+
+    /** Rail mode: shrink item height/icon (if needed) so that every section fits on the screen. */
+    private void applyRailSize(View rootView) {
+        int h = androidx.leanback.widget.SidebarMode.itemHeightPx;
+        if (h <= 0) {
+            return;
+        }
+
+        float density = rootView.getResources().getDisplayMetrics().density;
+        ViewGroup.LayoutParams lp = rootView.getLayoutParams();
+        if (lp == null) {
+            lp = new ViewGroup.MarginLayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, h);
+        } else {
+            lp.height = h;
+        }
+        rootView.setLayoutParams(lp);
+
+        int icon = Math.min((int) (32 * density), h - (int) (6 * density));
+        ImageView iconView = rootView.findViewById(R.id.header_icon);
+        if (iconView != null) {
+            ViewGroup.LayoutParams ilp = iconView.getLayoutParams();
+            ilp.width = icon;
+            ilp.height = icon;
+            iconView.setLayoutParams(ilp);
+        }
+        // keep the icon centered inside the 72dp rail
+        rootView.setPaddingRelative((int) (36 * density) - icon / 2, 0, rootView.getPaddingEnd(), 0);
+    }
 }
