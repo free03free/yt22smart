@@ -8,6 +8,8 @@ public final class SidebarMode {
     /** Rail icon size and start padding in px, measured from the real rail width (independent of dp/density quirks). */
     public static volatile int iconPx = 0;
     public static volatile int padStartPx = 0;
+    /** Top padding of the sections list in px (aligned with the video cards level when the screen is tall enough). */
+    public static volatile int topPadPx = 0;
 
     private SidebarMode() {
     }

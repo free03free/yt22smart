@@ -38,6 +38,7 @@ public class ExtendedHeadersSupportFragment extends HeadersSupportFragment {
 
     private OnHeaderLongPressedListener mOnHeaderLongPressedListener;
     private View mRailTop;
+    private int mAlignTopPx; // where the content rows start (same level as the video cards)
     private View mRailSearch;
     private View mRailAccount;
 
@@ -84,6 +85,7 @@ public class ExtendedHeadersSupportFragment extends HeadersSupportFragment {
         androidx.leanback.widget.SidebarMode.itemHeightPx = 0;
         androidx.leanback.widget.SidebarMode.iconPx = 0;
         androidx.leanback.widget.SidebarMode.padStartPx = 0;
+        androidx.leanback.widget.SidebarMode.topPadPx = 0;
         mRailSearch = top.findViewById(R.id.rail_search);
         mRailAccount = top.findViewById(R.id.rail_account);
         setupRailKeys();
@@ -117,6 +119,7 @@ public class ExtendedHeadersSupportFragment extends HeadersSupportFragment {
             return;
         }
 
+        mAlignTopPx = windowAlignOffsetTop;
         androidx.leanback.widget.VerticalGridView grid = getVerticalGridView();
         if (grid != null) {
             applyRailGridPadding(grid); // icons must start at the rail edge
@@ -130,7 +133,9 @@ public class ExtendedHeadersSupportFragment extends HeadersSupportFragment {
 
     private void applyRailGridPadding(androidx.leanback.widget.VerticalGridView grid) {
         float density = grid.getResources().getDisplayMetrics().density;
-        grid.setPaddingRelative(0, (int) (94 * density), grid.getPaddingEnd(), (int) (4 * density));
+        int top = androidx.leanback.widget.SidebarMode.topPadPx > 0
+                ? androidx.leanback.widget.SidebarMode.topPadPx : (int) (94 * density);
+        grid.setPaddingRelative(0, top, grid.getPaddingEnd(), (int) (4 * density));
     }
 
     /**
@@ -151,13 +156,26 @@ public class ExtendedHeadersSupportFragment extends HeadersSupportFragment {
         }
 
         float unit = railW / 72f; // px per "rail dp"
-        int h = Math.max((int) (30 * unit), Math.min((int) (48 * unit), avail / count));
+        int total = grid.getHeight() - grid.getPaddingBottom();
+        int minH = (int) (26 * unit);
+        int maxH = (int) (48 * unit);
+        int bottom = (int) (6 * unit);
+
+        // Start the list at the level of the video cards when the screen is tall enough, otherwise move it up
+        // (never above the account/search buttons) so that all sections still fit.
+        int wantedTop = mAlignTopPx > 0 ? mAlignTopPx : (int) (130 * unit);
+        int top = Math.max((int) (92 * unit), Math.min(wantedTop, total - count * minH - bottom));
+
+        int h = Math.max(minH, Math.min(maxH, (total - top - bottom) / count));
         int icon = Math.min((int) (32 * unit), h - (int) (6 * unit));
         int padStart = Math.max(0, (railW - icon) / 2);
 
         if (h != androidx.leanback.widget.SidebarMode.itemHeightPx
                 || icon != androidx.leanback.widget.SidebarMode.iconPx
-                || padStart != androidx.leanback.widget.SidebarMode.padStartPx) {
+                || padStart != androidx.leanback.widget.SidebarMode.padStartPx
+                || top != androidx.leanback.widget.SidebarMode.topPadPx) {
+            androidx.leanback.widget.SidebarMode.topPadPx = top;
+            applyRailGridPadding(grid);
             androidx.leanback.widget.SidebarMode.itemHeightPx = h;
             androidx.leanback.widget.SidebarMode.iconPx = icon;
             androidx.leanback.widget.SidebarMode.padStartPx = padStart;
