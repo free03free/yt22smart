@@ -101,6 +101,9 @@ public class PlayerData extends DataChangeBase implements PlayerConstants, Profi
     private final Runnable mPersistStateInt = this::persistStateInt;
     private boolean mIsLegacyCodecsForced;
     private boolean mIsAudioDelayEnabled;
+    private int mVideoDiskCacheMb; // 0 = disabled
+    private boolean mIsVideoDiskCacheDeleteOnSwitch = true;
+    private int mVideoLoadDelayMs = 500;
 
     private static class SpeedItem {
         public String channelId;
@@ -614,6 +617,36 @@ public class PlayerData extends DataChangeBase implements PlayerConstants, Profi
         return mIsAudioDelayEnabled;
     }
 
+    /** Max size of the video disk cache in MB (0 - disabled) */
+    public int getVideoDiskCacheMb() {
+        return mVideoDiskCacheMb;
+    }
+
+    /** Delete the disk cache as soon as the user switches to another video */
+    public boolean isVideoDiskCacheDeleteOnSwitch() {
+        return mIsVideoDiskCacheDeleteOnSwitch;
+    }
+
+    public void setVideoDiskCacheDeleteOnSwitch(boolean delete) {
+        mIsVideoDiskCacheDeleteOnSwitch = delete;
+        persistState();
+    }
+
+    /** Pause before the loading (buffering) of a video starts. Helps when the user quickly switches between videos. */
+    public int getVideoLoadDelayMs() {
+        return mVideoLoadDelayMs;
+    }
+
+    public void setVideoLoadDelayMs(int delayMs) {
+        mVideoLoadDelayMs = delayMs;
+        persistState();
+    }
+
+    public void setVideoDiskCacheMb(int sizeMb) {
+        mVideoDiskCacheMb = sizeMb;
+        persistState();
+    }
+
     public void setAudioDelayEnabled(boolean enabled) {
         mIsAudioDelayEnabled = enabled;
         persistState();
@@ -847,6 +880,9 @@ public class PlayerData extends DataChangeBase implements PlayerConstants, Profi
         mLastAudioLanguages = Helpers.parseStrList(split, 60);
         mIsVideoFlipEnabled = Helpers.parseBoolean(split, 61, false);
         mIsAudioDelayEnabled = Helpers.parseBoolean(split, 62, false);
+        mVideoDiskCacheMb = Helpers.parseInt(split, 63, 0);
+        mIsVideoDiskCacheDeleteOnSwitch = Helpers.parseBoolean(split, 64, true);
+        mVideoLoadDelayMs = Helpers.parseInt(split, 65, 500);
 
         if (speeds != null) {
             for (String speedSpec : speeds) {
@@ -884,7 +920,8 @@ public class PlayerData extends DataChangeBase implements PlayerConstants, Profi
                 mIsNumberKeySeekEnabled, mIsSkip24RateEnabled, mAfrPauseMs, mIsLiveChatEnabled, mLastSubtitleFormats, mLastSpeed, mRotationAngle,
                 mZoomPercents, mPlaybackMode, mAudioLanguage, mSubtitleLanguage, mEnabledSubtitlesPerChannel, mIsSubtitlesPerChannelEnabled,
                 mIsSpeedPerChannelEnabled, Helpers.mergeArray(mSpeeds.values().toArray()), mPitch, mIsSkipShortsEnabled, mLastAudioLanguages,
-                mIsVideoFlipEnabled, mIsAudioDelayEnabled
+                mIsVideoFlipEnabled, mIsAudioDelayEnabled, mVideoDiskCacheMb,
+                mIsVideoDiskCacheDeleteOnSwitch, mVideoLoadDelayMs
         ));
     }
 

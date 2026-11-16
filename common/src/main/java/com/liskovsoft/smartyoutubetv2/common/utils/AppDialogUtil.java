@@ -25,6 +25,7 @@ import com.liskovsoft.smartyoutubetv2.common.app.models.data.SimpleMediaItem;
 import com.liskovsoft.smartyoutubetv2.common.app.models.data.Video;
 import com.liskovsoft.smartyoutubetv2.common.app.models.playback.manager.PlayerConstants;
 import com.liskovsoft.smartyoutubetv2.common.app.models.playback.manager.PlayerManager;
+import com.liskovsoft.smartyoutubetv2.common.exoplayer.other.VideoDiskCache;
 import com.liskovsoft.smartyoutubetv2.common.app.models.playback.ui.OptionCategory;
 import com.liskovsoft.smartyoutubetv2.common.app.models.playback.ui.OptionItem;
 import com.liskovsoft.smartyoutubetv2.common.app.models.playback.ui.UiOptionItem;
@@ -65,6 +66,8 @@ import io.reactivex.disposables.Disposable;
 public class AppDialogUtil {
     private static final String TAG = AppDialogUtil.class.getSimpleName();
     private static final int VIDEO_BUFFER_ID = 134;
+    private static final int VIDEO_DISK_CACHE_ID = 1340;
+    private static final int VIDEO_LOAD_DELAY_ID = 1342;
     private static final int BACKGROUND_PLAYBACK_ID = 135;
     private static final int VIDEO_PRESETS_ID = 136;
     private static final int AUDIO_DELAY_ID = 137;
@@ -307,6 +310,53 @@ public class AppDialogUtil {
                 !isPresetSelection));
 
         return result;
+    }
+
+    /** Disk cache of the video data: instant rewind/replay without downloading the video again */
+    public static OptionCategory createVideoDiskCacheCategory(Context context) {
+        PlayerData playerData = PlayerData.instance(context);
+        List<OptionItem> options = new ArrayList<>();
+
+        options.add(UiOptionItem.from(context.getString(R.string.option_disabled),
+                optionItem -> playerData.setVideoDiskCacheMb(0), playerData.getVideoDiskCacheMb() == 0));
+
+        for (int sizeMb : new int[] {512, 1024, 2048, 4096, 8192, 16384}) {
+            String title = sizeMb < 1024 ? sizeMb + " MB" : (sizeMb / 1024) + " GB";
+            options.add(UiOptionItem.from(title,
+                    optionItem -> playerData.setVideoDiskCacheMb(sizeMb), playerData.getVideoDiskCacheMb() == sizeMb));
+        }
+
+        return OptionCategory.from(VIDEO_DISK_CACHE_ID, OptionCategory.TYPE_RADIO_LIST, context.getString(R.string.video_disk_cache), options);
+    }
+
+    public static OptionCategory createVideoDiskCacheDeleteOnSwitchCategory(Context context) {
+        PlayerData playerData = PlayerData.instance(context);
+        return OptionCategory.singleSwitch(UiOptionItem.from(context.getString(R.string.video_disk_cache_delete_on_switch),
+                optionItem -> playerData.setVideoDiskCacheDeleteOnSwitch(optionItem.isSelected()),
+                playerData.isVideoDiskCacheDeleteOnSwitch()));
+    }
+
+    /** Short pause before a video starts loading (when switching between videos) */
+    public static OptionCategory createVideoLoadDelayCategory(Context context) {
+        PlayerData playerData = PlayerData.instance(context);
+        List<OptionItem> options = new ArrayList<>();
+
+        for (int delayMs : new int[] {0, 300, 500, 1000, 2000, 3000}) {
+            String title = delayMs == 0 ? context.getString(R.string.option_disabled) : (delayMs / 1000f) + " s";
+            options.add(UiOptionItem.from(title,
+                    optionItem -> playerData.setVideoLoadDelayMs(delayMs), playerData.getVideoLoadDelayMs() == delayMs));
+        }
+
+        return OptionCategory.from(VIDEO_LOAD_DELAY_ID, OptionCategory.TYPE_RADIO_LIST, context.getString(R.string.video_load_delay), options);
+    }
+
+    /** Removes all cached video data */
+    public static OptionCategory createVideoDiskCacheClearCategory(Context context) {
+        return OptionCategory.singleButton(
+                UiOptionItem.from(context.getString(R.string.video_disk_cache_clear), optionItem -> {
+                    VideoDiskCache.clear(context);
+                    MessageHelpers.showMessage(context, R.string.msg_done);
+                }));
     }
 
     public static OptionCategory createVideoBufferCategory(Context context) {

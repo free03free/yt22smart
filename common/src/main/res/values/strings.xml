@@ -1587,4 +1587,8 @@
     <string name="ui_direction_rtl">Right to left</string>
     <string name="ui_direction_ltr">Left to right</string>
     <string name="video_buffer_size_full">Entire video</string>
+    <string name="video_disk_cache">Video disk cache (instant rewind and replay)</string>
+    <string name="video_disk_cache_clear">Clear video disk cache</string>
+    <string name="video_disk_cache_delete_on_switch">Delete the disk cache when switching to another video</string>
+    <string name="video_load_delay">Pause before loading the next video (quick switching)</string>
 </resources>

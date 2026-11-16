@@ -38,6 +38,14 @@ public class VideoLoaderController extends BasePlayerController {
     private SuggestionsController mSuggestionsController;
     private ErrorFixerController mErrorFixerController;
     private Disposable mFormatInfoAction;
+    private Video mDelayedVideo;
+    private final Runnable mLoadDelayedVideo = () -> {
+        Video video = mDelayedVideo;
+        mDelayedVideo = null;
+        if (getPlayer() != null && video != null) {
+            loadFormatInfo(video);
+        }
+    };
     private final Runnable mReloadVideo = () -> {
         getMainController().onNewVideo(getVideo());
     };
@@ -222,7 +230,19 @@ public class VideoLoaderController extends BasePlayerController {
             mPlaylist.setCurrent(item);
             getPlayer().setVideo(item);
             getPlayer().resetPlayerState();
-            loadFormatInfo(item);
+
+            // A short pause before the loading starts: quick switching between videos
+            // (next/previous, browsing suggestions) doesn't start loading every skipped video.
+            Utils.removeCallbacks(mLoadDelayedVideo);
+            int delayMs = PlayerData.instance(getContext()).getVideoLoadDelayMs();
+            if (delayMs > 0) {
+                mDelayedVideo = item;
+                getPlayer().showProgressBar(true);
+                Utils.postDelayed(mLoadDelayedVideo, delayMs);
+            } else {
+                mDelayedVideo = null;
+                loadFormatInfo(item);
+            }
         }
     }
 
@@ -421,7 +441,7 @@ public class VideoLoaderController extends BasePlayerController {
     private void disposeActions() {
         MediaServiceManager.instance().disposeActions();
         RxHelper.disposeActions(mFormatInfoAction);
-        Utils.removeCallbacks(mReloadVideo, mLoadNext, mRestartEngine, mMetadataSync);
+        Utils.removeCallbacks(mReloadVideo, mLoadNext, mRestartEngine, mMetadataSync, mLoadDelayedVideo);
     }
 
     public void restartEngine() {

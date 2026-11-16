@@ -62,6 +62,8 @@ public class PlayerSettingsPresenter extends BasePresenter<Void> {
         appendPlayerButtonsCategory(settingsPresenter);
         appendNetworkEngineCategory(settingsPresenter);
         appendVideoBufferCategory(settingsPresenter);
+        appendVideoDiskCacheCategory(settingsPresenter);
+        appendVideoLoadDelayCategory(settingsPresenter);
         appendVideoZoomCategory(settingsPresenter);
         appendVideoSpeedCategory(settingsPresenter);
         appendAudioLanguageCategory(settingsPresenter);
@@ -133,6 +135,16 @@ public class PlayerSettingsPresenter extends BasePresenter<Void> {
     private void appendVideoBufferCategory(AppDialogPresenter settingsPresenter) {
         OptionCategory category = AppDialogUtil.createVideoBufferCategory(getContext());
         settingsPresenter.appendCategory(category);
+    }
+
+    private void appendVideoDiskCacheCategory(AppDialogPresenter settingsPresenter) {
+        settingsPresenter.appendCategory(AppDialogUtil.createVideoDiskCacheCategory(getContext()));
+        settingsPresenter.appendCategory(AppDialogUtil.createVideoDiskCacheDeleteOnSwitchCategory(getContext()));
+        settingsPresenter.appendCategory(AppDialogUtil.createVideoDiskCacheClearCategory(getContext()));
+    }
+
+    private void appendVideoLoadDelayCategory(AppDialogPresenter settingsPresenter) {
+        settingsPresenter.appendCategory(AppDialogUtil.createVideoLoadDelayCategory(getContext()));
     }
 
     private void appendVideoPresetsCategory(AppDialogPresenter settingsPresenter) {

@@ -32,6 +32,14 @@ import com.google.android.exoplayer2.source.smoothstreaming.SsMediaSource;
 import com.google.android.exoplayer2.upstream.DataSource;
 import com.google.android.exoplayer2.upstream.DefaultBandwidthMeter;
 import com.google.android.exoplayer2.upstream.DefaultDataSourceFactory;
+import com.liskovsoft.smartyoutubetv2.common.prefs.PlayerData;
+import com.liskovsoft.smartyoutubetv2.common.exoplayer.other.VideoDiskCache;
+import com.google.android.exoplayer2.upstream.cache.CacheDataSourceFactory;
+import com.google.android.exoplayer2.upstream.cache.CacheDataSource;
+import com.google.android.exoplayer2.upstream.cache.CacheDataSinkFactory;
+import com.google.android.exoplayer2.upstream.cache.CacheDataSink;
+import com.google.android.exoplayer2.upstream.cache.Cache;
+import com.google.android.exoplayer2.upstream.FileDataSourceFactory;
 import com.google.android.exoplayer2.upstream.DefaultHttpDataSourceFactory;
 import com.google.android.exoplayer2.upstream.HttpDataSource;
 import com.google.android.exoplayer2.util.Util;
@@ -72,6 +80,9 @@ public class ExoMediaSourceFactory {
     private TrackErrorFixer mTrackErrorFixer;
     private DataSource.Factory mMediaDataSourceFactory;
     private DataSource.Factory mSabrMediaDataSourceFactory;
+    private DataSource.Factory mCachedMediaDataSourceFactory;
+    private int mCachedMediaDataSourceCacheMb;
+    private Cache mCachedMediaDataSourceCache;
 
     public ExoMediaSourceFactory(Context context) {
         mContext = context;
@@ -203,9 +214,17 @@ public class ExoMediaSourceFactory {
     }
 
     private MediaSource buildDashMediaSource(MediaItemFormatInfo formatInfo) {
+        if (!formatInfo.isLive() && PlayerData.instance(mContext).getVideoDiskCacheMb() > 0) {
+            // Delete the cache of the previous video as soon as the user switches to another one
+            VideoDiskCache.onVideoOpened(mContext, formatInfo.getVideoId(), PlayerData.instance(mContext).isVideoDiskCacheDeleteOnSwitch());
+        }
+
+        DashChunkSource.Factory chunkSourceFactory = formatInfo.isLive() ? getDashChunkSourceFactory() :
+                new DefaultDashChunkSource.Factory(getCachedMediaDataSourceFactory(), MAX_SEGMENTS_PER_LOAD);
+
         // Are you using FrameworkSampleSource or ExtractorSampleSource when you build your player?
         DashMediaSource dashSource = new DashMediaSource.Factory(
-                getDashChunkSourceFactory(),
+                chunkSourceFactory,
                 null
         )
                 .setLoadErrorHandlingPolicy(new DashDefaultLoadErrorHandlingPolicy())
@@ -366,6 +385,7 @@ public class ExoMediaSourceFactory {
     public void release() {
         mMediaDataSourceFactory = null;
         mSabrMediaDataSourceFactory = null;
+        mCachedMediaDataSourceFactory = null;
     }
 
     @NonNull
@@ -394,6 +414,36 @@ public class ExoMediaSourceFactory {
         }
 
         return mSabrMediaDataSourceFactory;
+    }
+
+    /**
+     * Media data source with the disk cache (only for regular, not live, videos).
+     * Rewinding / replaying the same video doesn't download it again.
+     */
+    private DataSource.Factory getCachedMediaDataSourceFactory() {
+        int cacheMb = PlayerData.instance(mContext).getVideoDiskCacheMb();
+
+        if (cacheMb <= 0) {
+            return getMediaDataSourceFactory();
+        }
+
+        Cache cache = VideoDiskCache.get(mContext, cacheMb); // may be a new instance after the cache was deleted
+
+        if (mCachedMediaDataSourceFactory == null || mCachedMediaDataSourceCacheMb != cacheMb || mCachedMediaDataSourceCache != cache) {
+            mCachedMediaDataSourceCacheMb = cacheMb;
+            mCachedMediaDataSourceCache = cache;
+            mCachedMediaDataSourceFactory = new CacheDataSourceFactory(
+                    cache,
+                    getMediaDataSourceFactory(),
+                    new FileDataSourceFactory(),
+                    new CacheDataSinkFactory(cache, CacheDataSink.DEFAULT_FRAGMENT_SIZE),
+                    CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR,
+                    null,
+                    VideoDiskCache.KEY_FACTORY
+            );
+        }
+
+        return mCachedMediaDataSourceFactory;
     }
 
     private DataSource.Factory getMediaDataSourceFactory() {

@@ -134,8 +134,12 @@ public class ExoPlayerInitializer {
                 // NOTE: not suitable for live streams (constant stuttering) - use "Highest" for them.
                 minBufferMs = 50_000;
                 maxBufferMs = 36_000_000; // technical infinity
-                baseBuilder.setPrioritizeTimeOverSizeThresholds(false); // stop at the memory limit, never go out of memory
-                baseBuilder.setBackBuffer(1_800_000, true); // keep up to 30 min already played: instant rewind
+                // Already played data stays in RAM for an instant rewind. ExoPlayer can't trim it dynamically,
+                // so its duration is derived from the app heap size (~600 bytes per ms = ~4.8 Mbps video)
+                // instead of a fixed number: a bigger value would end with OutOfMemory on long videos.
+                long heapBytes = Runtime.getRuntime().maxMemory();
+                int backBufferMs = (int) Math.max(60_000, Math.min(3_600_000, heapBytes * 0.3 / 600));
+                baseBuilder.setBackBuffer(backBufferMs, true);
                 break;
             case PlayerData.BUFFER_HIGH:
                 minBufferMs = 50_000;
