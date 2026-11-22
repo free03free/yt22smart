@@ -171,7 +171,7 @@ public final class InAppKeyboardDialog {
 
     private View buildRoot() {
         DisplayMetrics dm = InAppKeyboardView.screenMetrics(mContext);
-        boolean titleRow = !mSearchStyle;
+        boolean titleRow = !mSearchStyle; // true = dialog (not search box): needs a close button
         int navPx = InAppKeyboardView.navigationBarInset(mContext, dm);
         float reserved = 20 + 58 + (titleRow ? 34 : 0) + navPx / mDensity;
         int rowH = InAppKeyboardView.rowHeightPx(mContext, dm, reserved, 0.88f);
@@ -215,25 +215,6 @@ public final class InAppKeyboardDialog {
             root.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
         }
 
-        if (titleRow) {
-            LinearLayout top = new LinearLayout(mContext);
-            top.setOrientation(LinearLayout.HORIZONTAL);
-            top.setGravity(Gravity.CENTER_VERTICAL);
-            top.setPadding(dp(8), 0, dp(4), 0);
-            TextView title = new TextView(mContext);
-            title.setText(mTitle);
-            title.setTextColor(InAppKeyboardView.C_HINT);
-            title.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
-            title.setTypeface(medium());
-            title.setSingleLine(true);
-            top.addView(title, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-            if (!InAppKeyboardView.isLeanback(mContext)) { // touch devices have no Back key on screen
-                KeyView close = mKeyboard.newKey("", KeyView.CLOSE, InAppKeyboardView.C_KEY_SPECIAL, InAppKeyboardView.C_FOCUS, v -> mDialog.dismiss());
-                top.addView(close, new LinearLayout.LayoutParams(dp(40), dp(30)));
-            }
-            root.addView(top, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(34)));
-        }
-
         // text field: white pill, magnifier on the left (search), clear button on the right
         LinearLayout field = new LinearLayout(mContext);
         field.setOrientation(LinearLayout.HORIZONTAL);
@@ -271,9 +252,20 @@ public final class InAppKeyboardDialog {
             refresh(true);
         });
         field.addView(mClearButton, new LinearLayout.LayoutParams(dp(40), dp(40)));
-        LinearLayout.LayoutParams fieldLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(52));
+        // MOD: no separate title line (the field hint already shows it); the close button sits next to the field
+        LinearLayout fieldRow = new LinearLayout(mContext);
+        fieldRow.setOrientation(LinearLayout.HORIZONTAL);
+        fieldRow.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout.LayoutParams fieldLp = new LinearLayout.LayoutParams(0, dp(52), 1f);
         fieldLp.setMargins(dp(2), dp(2), dp(2), dp(8));
-        root.addView(field, fieldLp);
+        fieldRow.addView(field, fieldLp);
+        if (titleRow && !InAppKeyboardView.isLeanback(mContext)) { // touch devices have no Back key on screen
+            KeyView close = mKeyboard.newKey("", KeyView.CLOSE, InAppKeyboardView.C_KEY_SPECIAL, InAppKeyboardView.C_FOCUS, v -> mDialog.dismiss());
+            LinearLayout.LayoutParams closeLp = new LinearLayout.LayoutParams(dp(44), dp(40));
+            closeLp.setMargins(dp(4), dp(2), dp(2), dp(8));
+            fieldRow.addView(close, closeLp);
+        }
+        root.addView(fieldRow, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         root.addView(mKeyboard, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
