@@ -134,13 +134,12 @@ public class AppUpdatePresenter extends BasePresenter<Void> implements AppUpdate
 
         // Official update: notification only (installing it would erase the custom changes of this build).
         // Update from the user's own site: installation allowed.
-        if (mIsCustomSource) {
-            mSettingsPresenter.appendSingleButton(
-                    UiOptionItem.from(getContext().getString(R.string.install_update), optionItem -> {
-                        GeneralData.instance(getContext()).setChangelog(changelog);
-                        mUpdateChecker.installUpdate();
-                    }, false));
-        }
+        // MOD: the install button is always available now (also for the official update)
+        mSettingsPresenter.appendSingleButton(
+                UiOptionItem.from(getContext().getString(R.string.install_update), optionItem -> {
+                    GeneralData.instance(getContext()).setChangelog(changelog);
+                    mUpdateChecker.installUpdate();
+                }, false));
         mSettingsPresenter.appendStringsCategory(getContext().getString(R.string.update_changelog), createChangelogOptions(changelog));
         //mSettingsPresenter.appendSingleSwitch(UiOptionItem.from(getContext().getString(R.string.show_again), optionItem -> {
         //    mUpdateChecker.enableUpdateCheck(optionItem.isSelected());
@@ -159,7 +158,9 @@ public class AppUpdatePresenter extends BasePresenter<Void> implements AppUpdate
         BrowsePresenter.instance(getContext()).pinItem(getContext().getString(R.string.update_found), R.drawable.action_info, new ErrorFragmentData() {
             @Override
             public void onAction() {
-                // Notification only: no installation (keeps the custom changes of this build)
+                // MOD: the notice now installs the update (the system installer still asks for confirmation)
+                GeneralData.instance(getContext()).setChangelog(changelog);
+                mUpdateChecker.installUpdate();
             }
 
             @Override
@@ -171,7 +172,7 @@ public class AppUpdatePresenter extends BasePresenter<Void> implements AppUpdate
 
             @Override
             public String getActionText() {
-                return getContext().getString(R.string.update_notice_ok);
+                return getContext().getString(R.string.install_update);
             }
         });
     }
