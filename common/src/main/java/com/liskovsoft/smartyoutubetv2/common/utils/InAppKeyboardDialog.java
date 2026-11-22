@@ -78,7 +78,7 @@ public final class InAppKeyboardDialog {
         } catch (RuntimeException e) {
             // BadTokenException etc. - fall back to the old dialog so the feature never gets lost
             e.printStackTrace();
-            SimpleEditDialog.show(context, title, hint, initial, onSubmit::onSubmit, onDismiss);
+            SimpleEditDialog.showNative(context, title, hint, initial, onSubmit::onSubmit, onDismiss, false);
         }
     }
 

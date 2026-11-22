@@ -10,6 +10,7 @@ import androidx.appcompat.app.AlertDialog;
 import com.liskovsoft.sharedutils.helpers.KeyHelpers;
 import com.liskovsoft.sharedutils.helpers.MessageHelpers;
 import com.liskovsoft.smartyoutubetv2.common.R;
+import com.liskovsoft.smartyoutubetv2.common.prefs.SearchData;
 
 public class SimpleEditDialog {
     public interface OnChange {
@@ -37,6 +38,25 @@ public class SimpleEditDialog {
     }
 
     private static void show(Context context, String dialogTitle, String dialogHint, String defaultValue, OnChange onChange, Runnable onDismiss, boolean isPassword) {
+        // MOD: use the in-app keyboard (no full-screen system IME) for plain text fields
+        if (!isPassword && SearchData.instance(context).isInAppKeyboardEnabled()) {
+            InAppKeyboardDialog.show(context, dialogTitle, dialogHint, defaultValue, text -> {
+                if (text == null || text.trim().isEmpty()) {
+                    return false;
+                }
+                boolean done = onChange.onChange(text);
+                if (done) {
+                    InAppKeyboardView.saveDraft(context, dialogTitle, ""); // do not prefill next time
+                }
+                return done;
+            }, onDismiss);
+            return;
+        }
+        showNative(context, dialogTitle, dialogHint, defaultValue, onChange, onDismiss, isPassword);
+    }
+
+    /** Original dialog with the system keyboard (also the fallback of the in-app one). */
+    public static void showNative(Context context, String dialogTitle, String dialogHint, String defaultValue, OnChange onChange, Runnable onDismiss, boolean isPassword) {
         AlertDialog.Builder builder = new AlertDialog.Builder(context, R.style.AppDialog);
         LayoutInflater inflater = LayoutInflater.from(context);
         View contentView = inflater.inflate(R.layout.simple_edit_dialog, null);
