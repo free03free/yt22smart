@@ -3,6 +3,7 @@ package com.liskovsoft.smartyoutubetv2.common.utils;
 import android.app.Dialog;
 import android.content.Context;
 import android.graphics.Color;
+import android.graphics.Rect;
 import android.graphics.Typeface;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.GradientDrawable;
@@ -128,6 +129,44 @@ public final class InAppKeyboardDialog {
         }
 
         mKeyboard.focusSpace();
+
+        // MOD: some devices place the window partly below the visible screen (bottom row cut off): measure and lift it
+        if (window != null) {
+            final View decor = window.getDecorView();
+            decor.post(this::keepOnScreen);
+            decor.addOnLayoutChangeListener((v, l, t, rr, b, ol, ot, orr, ob) -> {
+                if (b - t != ob - ot) {
+                    decor.post(this::keepOnScreen);
+                }
+            });
+        }
+    }
+
+    private void keepOnScreen() {
+        try {
+            Window w = mDialog == null ? null : mDialog.getWindow();
+            if (w == null) {
+                return;
+            }
+            View decor = w.getDecorView();
+            int[] loc = new int[2];
+            decor.getLocationOnScreen(loc);
+            int bottom = loc[1] + decor.getHeight();
+            int limit = InAppKeyboardView.screenMetrics(mContext).heightPixels;
+            Rect vis = new Rect();
+            decor.getWindowVisibleDisplayFrame(vis);
+            if (vis.bottom > 0) {
+                limit = Math.min(limit, vis.bottom);
+            }
+            int overflow = bottom - limit;
+            if (overflow > 0) {
+                WindowManager.LayoutParams lp = w.getAttributes();
+                lp.y += overflow; // gravity is BOTTOM: positive y moves the window up
+                w.setAttributes(lp);
+            }
+        } catch (RuntimeException e) {
+            e.printStackTrace();
+        }
     }
 
     private View buildRoot() {
@@ -135,7 +174,7 @@ public final class InAppKeyboardDialog {
         boolean titleRow = !mSearchStyle;
         int navPx = InAppKeyboardView.navigationBarInset(mContext, dm);
         float reserved = 20 + 58 + (titleRow ? 34 : 0) + navPx / mDensity;
-        int rowH = InAppKeyboardView.rowHeightPx(mContext, dm, reserved, 0.94f);
+        int rowH = InAppKeyboardView.rowHeightPx(mContext, dm, reserved, 0.88f);
         mPanelWidth = InAppKeyboardView.panelWidthPx(mContext, dm, rowH);
 
         mKeyboard = new InAppKeyboardView(mContext, new InAppKeyboardView.Host() {
