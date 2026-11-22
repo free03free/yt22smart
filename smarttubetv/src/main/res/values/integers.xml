@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- MOD: opaque white search bar (library defaults: 51 / 179 made it look gray) -->
+    <integer name="lb_search_bar_text_mode_background_alpha">255</integer>
+    <integer name="lb_search_bar_speech_mode_background_alpha">255</integer>
+</resources>

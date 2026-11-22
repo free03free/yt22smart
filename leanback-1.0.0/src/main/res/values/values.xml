@@ -918,8 +918,8 @@
     <integer name="lb_playback_rows_fade_delay_ms">100</integer>
     <integer name="lb_playback_rows_fade_in_ms">150</integer>
     <integer name="lb_playback_rows_fade_out_ms">250</integer>
-    <integer name="lb_search_bar_speech_mode_background_alpha">179</integer>
-    <integer name="lb_search_bar_text_mode_background_alpha">51</integer>
+    <integer name="lb_search_bar_speech_mode_background_alpha">255</integer>
+    <integer name="lb_search_bar_text_mode_background_alpha">255</integer>
     <item name="lb_search_orb_pulse_duration_ms" type="integer">1000</item>
     <item name="lb_search_orb_scale_duration_ms" type="integer">150</item>
     <integer name="slideEdgeEnd">5</integer>

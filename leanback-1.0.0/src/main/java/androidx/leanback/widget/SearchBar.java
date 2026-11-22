@@ -764,7 +764,7 @@ public class SearchBar extends RelativeLayout {
 
     void updateUi(boolean hasFocus) {
         if (hasFocus) {
-            mBarBackground.setAlpha(mBackgroundSpeechAlpha);
+            mBarBackground.setAlpha(255); // MOD: opaque white bar
             if (isVoiceMode()) {
                 mSearchTextEditor.setTextColor(mTextHintColorSpeechMode);
                 mSearchTextEditor.setHintTextColor(mTextHintColorSpeechMode);
@@ -773,7 +773,7 @@ public class SearchBar extends RelativeLayout {
                 mSearchTextEditor.setHintTextColor(mTextHintColorSpeechMode);
             }
         } else {
-            mBarBackground.setAlpha(mBackgroundAlpha);
+            mBarBackground.setAlpha(255); // MOD: opaque white bar
             mSearchTextEditor.setTextColor(mTextColor);
             mSearchTextEditor.setHintTextColor(mTextHintColor);
         }
