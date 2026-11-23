@@ -22,7 +22,7 @@ import java.util.List;
 public class AppUpdatePresenter extends BasePresenter<Void> implements AppUpdateCheckerListener {
     @SuppressLint("StaticFieldLeak")
     private static AppUpdatePresenter sInstance;
-    private final AppUpdateChecker mUpdateChecker;
+    private AppUpdateChecker mUpdateChecker;
     private final AppDialogPresenter mSettingsPresenter;
     private final String[] mUpdateManifestUrls;
     private boolean mIsForceCheck;
@@ -91,6 +91,8 @@ public class AppUpdatePresenter extends BasePresenter<Void> implements AppUpdate
         mIsForceCheck = forceCheck;
 
         if (forceCheck) {
+            // MOD: a fresh checker, so a background check that is still running (or stuck) does not block the manual one
+            mUpdateChecker = new AppUpdateChecker(getContext(), this);
             LoadingManager.showLoading(getContext(), true);
             mUpdateChecker.forceCheckForUpdates(mUpdateManifestUrls);
         } else {
@@ -114,6 +116,12 @@ public class AppUpdatePresenter extends BasePresenter<Void> implements AppUpdate
     public void onUpdateError(Exception error) {
         if (mIsForceCheck) {
             LoadingManager.showLoading(getContext(), false);
+
+            // MOD: "already checking" is not a real failure: another check is in progress, no error toast
+            if (error.getMessage() != null && error.getMessage().contains("already checking")) {
+                MessageHelpers.showMessage(getContext(), R.string.loading);
+                return;
+            }
 
             if (AppUpdateCheckerListener.LATEST_VERSION.equals(error.getMessage())) {
                 MessageHelpers.showMessage(getContext(), R.string.update_not_found);
