@@ -71,11 +71,12 @@ public class SettingsGridFragment extends GridFragment implements SettingsSectio
     private void setupAdapter() {
         VerticalGridPresenter presenter = new VerticalGridPresenter(ViewUtil.FOCUS_ZOOM_FACTOR, ViewUtil.FOCUS_DIMMER_ENABLED);
         presenter.enableChildRoundedCorners(getMainUIData().isUiTweakEnabled(MainUIData.UI_TWEAK_ROUNDED_CORNERS));
-        presenter.setNumberOfColumns(GridFragmentHelper.getMaxColsNum(getContext(), R.dimen.settings_card_width));
+        // MOD: vertical list (icon + name per row), like YouTube TV settings
+        presenter.setNumberOfColumns(1);
         setGridPresenter(presenter);
 
         if (mSettingsAdapter == null) {
-            SettingsCardPresenter gridPresenter = new SettingsCardPresenter();
+            SettingsCardPresenter gridPresenter = new SettingsCardPresenter(R.layout.settings_row);
             mSettingsAdapter = new ArrayObjectAdapter(gridPresenter);
             setAdapter(mSettingsAdapter);
         }

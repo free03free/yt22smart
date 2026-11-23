@@ -21,6 +21,16 @@ public class SettingsCardPresenter extends Presenter {
     private int mDefaultTextColor;
     private int mSelectedBackgroundColor;
     private int mSelectedTextColor;
+    private final int mLayoutResId;
+
+    public SettingsCardPresenter() {
+        this(R.layout.settings_card);
+    }
+
+    /** MOD: lets the settings screen use a row layout (icon + title) instead of a card. */
+    public SettingsCardPresenter(int layoutResId) {
+        mLayoutResId = layoutResId;
+    }
 
     @Override
     public ViewHolder onCreateViewHolder(ViewGroup parent) {
@@ -36,7 +46,7 @@ public class SettingsCardPresenter extends Presenter {
                 ContextCompat.getColor(context, R.color.card_selected_text_grey);
 
         @SuppressLint("InflateParams")
-        View container = LayoutInflater.from(context).inflate(R.layout.settings_card, null);
+        View container = LayoutInflater.from(context).inflate(mLayoutResId, null);
         container.setBackgroundColor(mDefaultBackgroundColor);
         //if (VERSION.SDK_INT >= 23 && MainUIData.instance(context).isUiTweakEnabled(MainUIData.UI_TWEAK_ROUNDED_CORNERS)) {
         //    container.setForeground(ContextCompat.getDrawable(context, R.drawable.lb_card_outline));
