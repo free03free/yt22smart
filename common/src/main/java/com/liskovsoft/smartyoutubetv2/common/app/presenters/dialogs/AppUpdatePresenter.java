@@ -82,6 +82,11 @@ public class AppUpdatePresenter extends BasePresenter<Void> implements AppUpdate
                     mSettingsPresenter.closeDialog();
                     com.liskovsoft.smartyoutubetv2.common.misc.CustomUpdater.downloadAndInstall(getContext(), release);
                 }, false));
+        mSettingsPresenter.appendSingleButton(
+                UiOptionItem.from(getContext().getString(R.string.download_update), optionItem -> {
+                    mSettingsPresenter.closeDialog();
+                    com.liskovsoft.smartyoutubetv2.common.misc.CustomUpdater.downloadToStorage(getContext(), release);
+                }, false));
         mSettingsPresenter.appendStringsCategory(getContext().getString(R.string.update_changelog), createChangelogOptions(release.changes));
         mSettingsPresenter.showDialog(String.format("%s %s", getContext().getString(R.string.app_name), release.name), AppUpdatePresenter::unhold);
     }
@@ -142,12 +147,31 @@ public class AppUpdatePresenter extends BasePresenter<Void> implements AppUpdate
 
         // Official update: notification only (installing it would erase the custom changes of this build).
         // Update from the user's own site: installation allowed.
-        // MOD: the install button is always available now (also for the official update)
-        mSettingsPresenter.appendSingleButton(
-                UiOptionItem.from(getContext().getString(R.string.install_update), optionItem -> {
-                    GeneralData.instance(getContext()).setChangelog(changelog);
-                    mUpdateChecker.installUpdate();
-                }, false));
+        // Official update: notification only (it is signed with another key and cannot be installed over this build)
+        if (mIsCustomSource) {
+            mSettingsPresenter.appendSingleButton(
+                    UiOptionItem.from(getContext().getString(R.string.install_update), optionItem -> {
+                        GeneralData.instance(getContext()).setChangelog(changelog);
+                        mUpdateChecker.installUpdate();
+                    }, false));
+        }
+        // MOD: official apk cannot be installed over this build, but it can be saved to the phone storage
+        if (apkPath != null && apkPath.startsWith("http")) {
+            final com.liskovsoft.smartyoutubetv2.common.misc.CustomUpdater.Release official = new com.liskovsoft.smartyoutubetv2.common.misc.CustomUpdater.Release();
+            official.name = versionName;
+            official.apkUrl = apkPath;
+            String last = apkPath.substring(apkPath.lastIndexOf('/') + 1);
+            int q = last.indexOf('?');
+            if (q > 0) {
+                last = last.substring(0, q);
+            }
+            official.apkName = last.endsWith(".apk") ? last : "SmartTube_" + versionName + ".apk";
+            mSettingsPresenter.appendSingleButton(
+                    UiOptionItem.from(getContext().getString(R.string.download_update), optionItem -> {
+                        mSettingsPresenter.closeDialog();
+                        com.liskovsoft.smartyoutubetv2.common.misc.CustomUpdater.downloadToStorage(getContext(), official);
+                    }, false));
+        }
         mSettingsPresenter.appendStringsCategory(getContext().getString(R.string.update_changelog), createChangelogOptions(changelog));
         //mSettingsPresenter.appendSingleSwitch(UiOptionItem.from(getContext().getString(R.string.show_again), optionItem -> {
         //    mUpdateChecker.enableUpdateCheck(optionItem.isSelected());
@@ -166,9 +190,7 @@ public class AppUpdatePresenter extends BasePresenter<Void> implements AppUpdate
         BrowsePresenter.instance(getContext()).pinItem(getContext().getString(R.string.update_found), R.drawable.action_info, new ErrorFragmentData() {
             @Override
             public void onAction() {
-                // MOD: the notice now installs the update (the system installer still asks for confirmation)
-                GeneralData.instance(getContext()).setChangelog(changelog);
-                mUpdateChecker.installUpdate();
+                // Notification only: the official apk has another signature
             }
 
             @Override
@@ -180,7 +202,7 @@ public class AppUpdatePresenter extends BasePresenter<Void> implements AppUpdate
 
             @Override
             public String getActionText() {
-                return getContext().getString(R.string.install_update);
+                return getContext().getString(R.string.update_notice_ok);
             }
         });
     }

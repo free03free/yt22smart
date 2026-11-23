@@ -1591,4 +1591,6 @@
     <string name="video_disk_cache_clear">Clear video disk cache</string>
     <string name="video_disk_cache_delete_on_switch">Delete the disk cache when switching to another video</string>
     <string name="video_load_delay">Pause before loading the next video (quick switching)</string>
+    <string name="download_update">Download update to phone storage</string>
+    <string name="update_saved_to_downloads">Saved to Downloads: %s</string>
 </resources>

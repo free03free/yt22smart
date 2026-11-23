@@ -1583,4 +1583,6 @@
     <string name="video_disk_cache_clear">مسح تخزين الفيديو</string>
     <string name="video_disk_cache_delete_on_switch">حذف تخزين القرص عند الانتقال إلى فيديو آخر</string>
     <string name="video_load_delay">تأخير قبل تحميل الفيديو التالي (للتنقل السريع)</string>
+    <string name="download_update">تنزيل التحديث في تخزين الهاتف</string>
+    <string name="update_saved_to_downloads">تم الحفظ في مجلد التنزيلات: %s</string>
 </resources>

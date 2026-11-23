@@ -6,12 +6,15 @@ import android.content.Context;
 import android.content.ContextWrapper;
 import android.content.Intent;
 import android.content.pm.PackageInfo;
+import android.content.ContentValues;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
+import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
+import android.provider.MediaStore;
 import android.provider.Settings;
 import android.view.ViewGroup;
 import android.widget.LinearLayout;
@@ -129,6 +132,88 @@ public final class CustomUpdater {
                 });
             }
         }).start();
+    }
+
+    /** Downloads the apk and saves it to the public Downloads folder (no install). */
+    public static void downloadToStorage(Context context, Release release) {
+        final Context app = context.getApplicationContext();
+        final Activity activity = findActivity(context);
+        final ProgressUi ui = new ProgressUi(activity, app);
+        ui.show();
+
+        new Thread(() -> {
+            File tmp = null;
+
+            try {
+                File dir = new File(app.getCacheDir(), "updates");
+                if (!dir.exists() && !dir.mkdirs()) {
+                    throw new IOException("Can't create " + dir);
+                }
+
+                tmp = new File(dir, "download.apk");
+                if (tmp.exists()) {
+                    tmp.delete();
+                }
+
+                download(release.apkUrl, tmp, ui);
+
+                String fileName = release.apkName != null && !release.apkName.isEmpty() ? release.apkName : "SmartTube-update.apk";
+                saveToDownloads(app, tmp, fileName);
+                tmp.delete();
+
+                MAIN.post(() -> {
+                    ui.dismiss();
+                    MessageHelpers.showMessage(app, String.format(app.getString(R.string.update_saved_to_downloads), fileName));
+                });
+            } catch (Exception e) {
+                if (tmp != null) {
+                    tmp.delete();
+                }
+
+                MAIN.post(() -> {
+                    ui.dismiss();
+                    if (!ui.cancelled) {
+                        Log.e(TAG, "Update download failed: " + e);
+                        MessageHelpers.showMessage(app, app.getString(R.string.update_error) + ": " + e.getMessage());
+                    }
+                });
+            }
+        }).start();
+    }
+
+    private static void saveToDownloads(Context app, File src, String fileName) throws IOException {
+        if (Build.VERSION.SDK_INT >= 29) {
+            ContentValues values = new ContentValues();
+            values.put(MediaStore.MediaColumns.DISPLAY_NAME, fileName);
+            values.put(MediaStore.MediaColumns.MIME_TYPE, "application/vnd.android.package-archive");
+            values.put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS);
+            Uri uri = app.getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
+            if (uri == null) {
+                throw new IOException("Can't create a file in Downloads");
+            }
+            try (InputStream in = new java.io.FileInputStream(src); OutputStream out = app.getContentResolver().openOutputStream(uri)) {
+                copy(in, out);
+            }
+        } else {
+            File dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+            if (!dir.exists() && !dir.mkdirs()) {
+                throw new IOException("Can't create " + dir);
+            }
+            try (InputStream in = new java.io.FileInputStream(src); OutputStream out = new FileOutputStream(new File(dir, fileName))) {
+                copy(in, out);
+            }
+        }
+    }
+
+    private static void copy(InputStream in, OutputStream out) throws IOException {
+        if (out == null) {
+            throw new IOException("No output stream");
+        }
+        byte[] buf = new byte[64 * 1024];
+        int n;
+        while ((n = in.read(buf)) > 0) {
+            out.write(buf, 0, n);
+        }
     }
 
     private static Activity findActivity(Context context) {
